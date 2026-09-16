@@ -1,6 +1,7 @@
 name = "my-ai-worker"
 main = "src/index.js"
 compatibility_date = "2026-01-01"
+compatibility_flags = ["nodejs_compat"]
 
 [observability]
 enabled = true
@@ -17,13 +18,15 @@ enabled = true
 # App cá nhân dùng bình thường sẽ không chạm các giới hạn này.
 # =====================================================================
 
+
 # ---- Browser Rendering (trước đây "Browser Rendering", giờ Cloudflare gọi "Browser Run") ----
-# Cho phép Worker điều khiển 1 trình duyệt Chrome thật chạy trên hạ tầng Cloudflare — dùng thay
-# Playwright cho 2 tính năng "Agent Mode" (khi cần thao tác web) và "Điều khiển trình duyệt thật".
-# KHÔNG cần cài Chromium/Playwright, không cần lệnh tạo trước, không cần thẻ ở mức free (giới hạn:
-# vài phiên đồng thời/phút, tối đa 10 phút "browser time"/ngày trên free plan — nâng lên Workers
-# Paid nếu cần nhiều hơn). Cần `compatibility_flags = ["nodejs_compat"]` ở trên (Browser Rendering
-# yêu cầu 1 số API Node.js) và cài package `@cloudflare/puppeteer` (đã có trong package.json).
+# Cho phép Worker điều khiển 1 trình duyệt Chrome thật chạy trên hạ tầng Cloudflare, qua bản fork
+# chính thức của Playwright (GA từ 09/2025) — dùng cho 2 tính năng "Agent Mode" (khi cần thao tác
+# web) và "Điều khiển trình duyệt thật". KHÔNG cần cài Chromium/Playwright, không cần lệnh tạo
+# trước, không cần thẻ ở mức free (giới hạn: vài phiên đồng thời/phút, tối đa 10 phút "browser
+# time"/ngày trên free plan — nâng lên Workers Paid nếu cần nhiều hơn). Cần
+# `compatibility_flags = ["nodejs_compat"]` ở trên + `compatibility_date` từ 2025-09-15 trở lên
+# (đã đáp ứng), và cài package `@cloudflare/playwright` (đã có trong package.json).
 [browser]
 binding = "MYBROWSER"
 
