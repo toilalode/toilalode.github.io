@@ -1,11 +1,11 @@
-# My-AI
-
-Trợ lý AI cá nhân tự host, chạy bằng Gemini API (dùng được với API key **free**).
+# Velocitix-AI
+- Mở web tại :
+- https://toilalode.github.io
 
 ## Cài đặt
 
 ```bash
-cd My-AI
+cd Velocitix-AI
 npm install
 cp .env.example .env
 ```
@@ -27,7 +27,7 @@ Mở trình duyệt: `http://localhost:3000`
 ## Cấu trúc
 
 ```
-My-AI/
+Velocitix-AI/
 ├── backend/
 │   ├── server.js         # Express server, gộp toàn bộ route
 │   ├── config/models.js  # Tên model Gemini + logic Auto model
