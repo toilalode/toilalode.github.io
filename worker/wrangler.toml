@@ -17,6 +17,16 @@ enabled = true
 # App cá nhân dùng bình thường sẽ không chạm các giới hạn này.
 # =====================================================================
 
+# ---- Browser Rendering (trước đây "Browser Rendering", giờ Cloudflare gọi "Browser Run") ----
+# Cho phép Worker điều khiển 1 trình duyệt Chrome thật chạy trên hạ tầng Cloudflare — dùng thay
+# Playwright cho 2 tính năng "Agent Mode" (khi cần thao tác web) và "Điều khiển trình duyệt thật".
+# KHÔNG cần cài Chromium/Playwright, không cần lệnh tạo trước, không cần thẻ ở mức free (giới hạn:
+# vài phiên đồng thời/phút, tối đa 10 phút "browser time"/ngày trên free plan — nâng lên Workers
+# Paid nếu cần nhiều hơn). Cần `compatibility_flags = ["nodejs_compat"]` ở trên (Browser Rendering
+# yêu cầu 1 số API Node.js) và cài package `@cloudflare/puppeteer` (đã có trong package.json).
+[browser]
+binding = "MYBROWSER"
+
 # ---- D1 (lưu lịch sử chat + hồ sơ người dùng) ----
 # Bước 1: tạo database (chạy 1 lần):  wrangler d1 create my-ai-db
 # Bước 2: copy "database_id" mà lệnh trên in ra, dán vào dòng database_id bên dưới
