@@ -1,0 +1,673 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover" />
+<title>Velocitix AI</title>
+
+<!-- ===== PWA: cho phép "Thêm vào Màn hình chính" / Cài đặt như app native ===== -->
+<link rel="manifest" href="manifest.json" />
+<meta name="theme-color" content="#0a1a3d" />
+<link rel="icon" href="icons/icon-192.png" type="image/png" />
+<link rel="apple-touch-icon" href="icons/icon-192.png" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="Velocitix" />
+
+<link rel="stylesheet" href="style.css" />
+<script src="https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.2/marked.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.1.5/purify.min.js"></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/contrib/auto-render.min.js"></script>
+</head>
+<body>
+
+<div id="app">
+
+  <!-- SIDEBAR -->
+  <nav id="sidebar">
+    <div class="brand">✨ Velocitix AI</div>
+    <div class="sidebar-top-row">
+      <button id="newChatBtn" title="Cuộc trò chuyện mới">＋ Mới</button>
+      <button id="tempChatBtnTop" title="Trò chuyện tạm thời — không lưu lại lịch sử">🕶️ Tạm thời</button>
+    </div>
+    <!-- Vùng menu (Chat, Code...) + lịch sử chat: gộp chung 1 khối vuốt lên/xuống được -->
+    <div class="nav-scroll">
+      <button class="nav-btn active" data-mode="chat">💬 Chat</button>
+      <button class="nav-btn" data-mode="code">💻 Code Editor</button>
+      <button class="nav-btn" data-mode="agent">🚀 Agent Mode</button>
+      <button class="nav-btn" data-mode="webask">🧭 Mở web & hỏi AI</button>
+      <button class="nav-btn" data-mode="artifacts">🧩 Artifacts</button>
+      <button class="nav-btn" data-mode="library">🗂️ Thư viện</button>
+
+      <!-- Menu thu gọn: các mục ít dùng hơn gom vào đây để sidebar gọn -->
+      <div class="nav-more-wrap">
+        <button class="nav-btn nav-more-btn" id="navMoreBtn">⋯ Thêm</button>
+        <div class="nav-more-menu hidden" id="navMoreMenu">
+          <button class="nav-btn" data-mode="homework">📘 Giải bài tập</button>
+          <button class="nav-btn" data-mode="image">🖼️ Tạo ảnh</button>
+          <button class="nav-btn" data-mode="video">🎬 Tạo video</button>
+          <button class="nav-btn" data-mode="voice">🎙️ Voice</button>
+        </div>
+      </div>
+
+      <div class="sidebar-history">
+        <div class="sidebar-history-title">🕘 Lịch sử chat</div>
+        <input type="text" id="convSearchInput" class="conv-search-input" placeholder="🔍 Tìm hội thoại..." />
+        <div id="convList" class="conv-list"></div>
+      </div>
+    </div>
+
+    <!-- Tài khoản đăng nhập -->
+    <div id="accountBox" class="account-box">
+      <img id="accountAvatar" class="account-avatar hidden" alt="Ảnh đại diện" />
+      <span id="accountName" class="account-name"></span>
+      <button id="signOutBtn" class="account-signout hidden" title="Đăng xuất">Đăng xuất</button>
+    </div>
+    <button class="nav-btn" data-mode="settings">⚙️ Cài đặt / Connectors</button>
+  </nav>
+
+  <!-- MÀN HÌNH ĐĂNG NHẬP — che toàn bộ app cho tới khi đăng nhập thành công -->
+  <div id="loginOverlay" class="login-overlay">
+    <div class="login-card">
+      <div class="login-brand-row">
+        <span class="login-brand-icon">✨</span>
+        <span class="login-brand-text">Velocitix AI</span>
+      </div>
+      <p class="login-sub">Đăng nhập để lưu và đồng bộ lịch sử chat của riêng bạn</p>
+
+      <!-- Đăng nhập nhanh lại bằng tài khoản gần nhất (Google hoặc tự tạo) — chỉ hiện nếu có lưu -->
+      <button id="quickRelogatinBtn" class="quick-relogin-btn hidden" type="button">
+        <img id="quickRelogAvatar" class="account-avatar hidden" alt="" />
+        <span id="quickRelogText">Đăng nhập lại</span>
+      </button>
+      <!-- Chỉ hiện khi có ≥2 tài khoản đã từng đăng nhập trên máy này -->
+      <button id="switchAccountBtn" class="switch-account-link hidden" type="button">Xem tài khoản đã đăng nhập</button>
+
+      <div id="googleSignInBtn" class="google-btn-wrap"></div>
+
+      <div class="login-divider"><span>hoặc dùng email</span></div>
+
+      <!-- Tab chuyển giữa Đăng nhập / Đăng ký bằng email -->
+      <div class="login-tabs" role="tablist">
+        <button type="button" class="login-tab active" id="tabLoginBtn" role="tab" aria-selected="true">Đăng nhập</button>
+        <button type="button" class="login-tab" id="tabRegisterBtn" role="tab" aria-selected="false">Tạo tài khoản</button>
+      </div>
+
+      <form id="localAuthForm" class="local-auth-form" novalidate>
+        <input type="text" id="authNameInput" class="auth-input hidden" placeholder="Tên hiển thị (tuỳ chọn)" autocomplete="name" />
+        <input type="email" id="authEmailInput" class="auth-input" placeholder="Email" autocomplete="email" required />
+        <input type="password" id="authPasswordInput" class="auth-input" placeholder="Mật khẩu (ít nhất 6 ký tự)" autocomplete="current-password" required minlength="6" />
+        <label class="remember-me-row">
+          <input type="checkbox" id="rememberMeCheckbox" checked />
+          <span>Ghi nhớ đăng nhập 30 ngày</span>
+        </label>
+        <button type="submit" id="localAuthSubmitBtn" class="local-auth-submit">Đăng nhập</button>
+        <button type="button" id="forgotPasswordBtn" class="forgot-password-link">Quên mật khẩu?</button>
+      </form>
+
+      <!-- Form quên mật khẩu — chỉ hiện khi bấm "Quên mật khẩu?" -->
+      <form id="forgotPasswordForm" class="local-auth-form hidden" novalidate>
+        <p class="login-sub" style="margin:0 0 4px;">Nhập email để nhận link đặt lại mật khẩu</p>
+        <input type="email" id="forgotEmailInput" class="auth-input" placeholder="Email đã đăng ký" required />
+        <button type="submit" class="local-auth-submit">Gửi link đặt lại mật khẩu</button>
+        <button type="button" id="backToLoginBtn" class="forgot-password-link">← Quay lại đăng nhập</button>
+      </form>
+
+      <!-- Form đặt mật khẩu mới — chỉ hiện khi mở link từ email (?resetToken=...) -->
+      <form id="resetPasswordForm" class="local-auth-form hidden" novalidate>
+        <p class="login-sub" style="margin:0 0 4px;">Nhập mật khẩu mới cho tài khoản của bạn</p>
+        <input type="password" id="newPasswordInput" class="auth-input" placeholder="Mật khẩu mới (ít nhất 6 ký tự)" required minlength="6" autocomplete="new-password" />
+        <button type="submit" class="local-auth-submit">Đặt lại mật khẩu</button>
+      </form>
+
+      <p id="loginError" class="login-error hidden"></p>
+    </div>
+  </div>
+
+  <!-- Modal: danh sách MỌI tài khoản đã từng đăng nhập trên máy này (Google + Velocitix) -->
+  <div id="savedAccountsModal" class="saved-accounts-modal hidden">
+    <div class="saved-accounts-card">
+      <div class="saved-accounts-header">
+        <span>Tài khoản đã đăng nhập</span>
+        <button type="button" id="closeSavedAccountsBtn" class="saved-accounts-close" aria-label="Đóng">✕</button>
+      </div>
+      <div id="savedAccountsList" class="saved-accounts-list"></div>
+    </div>
+  </div>
+
+  <!-- Thư viện Google Identity Services -->
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+
+  <!-- MAIN -->
+  <main id="main">
+
+    <!-- TOP BAR -->
+    <header id="topbar">
+      <button id="hamburger">☰</button>
+      <div class="topbar-title" id="modeTitle">Chat</div>
+      <button class="topbar-icon-btn" id="semSearchToggleBtn" title="Tìm kiếm ngữ nghĩa trong lịch sử chat">🔎</button>
+      <button class="topbar-icon-btn" id="shareChatBtn" title="Chia sẻ đoạn chat này">🔗</button>
+    </header>
+
+    <div id="tempBanner" class="hidden">🕶️ Chế độ trò chuyện tạm thời — nội dung sẽ KHÔNG được lưu lại.</div>
+
+    <!-- ================= CHAT / HOMEWORK PANEL ================= -->
+    <section class="panel active" id="panel-chat">
+      <div class="chat-search-bar hidden" id="chatSearchBar">
+        <input type="text" id="semSearchInput" placeholder="🔎 Tìm kiếm ngữ nghĩa trong lịch sử chat..." />
+        <button id="semSearchBtn">Tìm</button>
+        <button id="semSearchCloseBtn" class="hidden">✕</button>
+      </div>
+      <div id="semSearchResults" class="hidden"></div>
+
+      <!-- Deep Research: chỉ còn ở đây (Chat) và trong Agent Mode, KHÔNG còn là 1 trang riêng.
+           Mặc định thu gọn thành 1 dải nhỏ; bấm chữ "Deep Research" để xem tiến trình,
+           vuốt xuống trên phần mở rộng để ẩn lại. Tự thu gọn khi có báo cáo được đưa vào chat. -->
+      <div class="research-widget hidden" id="researchWidget-chat">
+        <button class="research-widget-pill" id="researchPill-chat">🔎 Deep Research <span class="research-widget-state" id="researchState-chat"></span></button>
+        <button class="research-stop-btn hidden" id="researchStopBtn-chat" type="button" title="Dừng Deep Research">⏹</button>
+        <div class="research-widget-body hidden" id="researchBody-chat"></div>
+      </div>
+
+      <div class="messages" id="chatMessages"></div>
+      <div class="attach-preview" id="attachPreview"></div>
+      <div class="composer">
+        <!-- Chip hiện khi Deep Research đang bật cho tin nhắn tiếp theo — bấm ✕ để tắt ngay,
+             không cần mở lại sheet "+". Đây chính là chỗ trước đây người dùng không tìm thấy
+             cách bật/tắt rõ ràng (trước chỉ đổi placeholder ô nhập, dễ bị bỏ sót). -->
+        <div class="active-mode-chip hidden" id="deepResearchChip">
+          <span>🔎 Deep Research đang bật</span>
+          <button type="button" id="deepResearchChipOff" title="Tắt Deep Research">✕</button>
+        </div>
+        <textarea id="chatInput" placeholder="Nhắn gì đó cho Velocitix AI..." rows="1"></textarea>
+        <div class="composer-toolbar">
+          <div class="composer-toolbar-left">
+            <button class="tool-btn plus-btn" id="btnPlus" title="Thêm ảnh, file, web search...">＋</button>
+            <button class="topbar-controls" id="modelPillBtn" title="Chọn model">
+              <span id="modelPillLabel">⚡ Auto</span> <span class="chev">▾</span>
+            </button>
+          </div>
+          <div class="composer-toolbar-right">
+            <button class="tool-btn mic-btn" id="btnMic" title="Ghi âm giọng nói">🎤</button>
+            <button id="sendBtn" title="Gửi">➤</button>
+          </div>
+        </div>
+      </div>
+      <input type="file" id="fileInput" class="hidden" />
+      <input type="file" id="mediaInput" accept="image/*,video/*" class="hidden" />
+      <input type="file" id="folderInput" class="hidden" webkitdirectory directory multiple />
+      <input type="file" id="cameraInput" accept="image/*" capture="environment" class="hidden" />
+      <input type="file" id="videoCaptureInput" accept="video/*" capture="environment" class="hidden" />
+    </section>
+
+    <!-- ================= ATTACH SHEET (giống "Add to chat" của Claude) ================= -->
+    <div class="sheet-backdrop hidden" id="attachBackdrop"></div>
+    <div class="sheet" id="attachSheet">
+      <div class="sheet-handle"></div>
+      <div class="sheet-header">
+        <button class="sheet-close" id="attachCloseBtn">✕</button>
+        <div class="sheet-title">Thêm vào chat</div>
+        <div style="width:24px"></div>
+      </div>
+      <div class="sheet-grid3">
+        <button class="sheet-grid-item" id="sheetCamera"><span class="sheet-icon">📷</span>Camera</button>
+        <button class="sheet-grid-item" id="sheetPhotos"><span class="sheet-icon">🖼️</span>Ảnh/Video</button>
+        <button class="sheet-grid-item" id="sheetFiles"><span class="sheet-icon">📎</span>File</button>
+      </div>
+      <button class="sheet-row" id="sheetFolder">
+        <span class="sheet-row-icon">📁</span>
+        <span class="sheet-row-text"><span class="sheet-row-title">Đính kèm thư mục</span><span class="sheet-row-sub">Nhiều file cùng lúc</span></span>
+      </button>
+      <button class="sheet-row" id="sheetVideoCap">
+        <span class="sheet-row-icon">🎥</span>
+        <span class="sheet-row-text"><span class="sheet-row-title">Quay video</span></span>
+      </button>
+      <div class="sheet-divider"></div>
+      <label class="sheet-row sheet-toggle-row">
+        <span class="sheet-row-icon">🌐</span>
+        <span class="sheet-row-text"><span class="sheet-row-title">Web search</span><span class="sheet-row-sub">Cho phép AI tìm kiếm trên web</span></span>
+        <input type="checkbox" id="webSearchToggle" class="sheet-switch" />
+      </label>
+      <label class="sheet-row sheet-toggle-row">
+        <span class="sheet-row-icon">🕶️</span>
+        <span class="sheet-row-text"><span class="sheet-row-title">Trò chuyện tạm thời</span><span class="sheet-row-sub">Không lưu lại lịch sử</span></span>
+        <input type="checkbox" id="tempChatToggle" class="sheet-switch" />
+      </label>
+      <label class="sheet-row sheet-toggle-row">
+        <span class="sheet-row-icon">🔎</span>
+        <span class="sheet-row-text"><span class="sheet-row-title">Deep Research</span><span class="sheet-row-sub">Nghiên cứu sâu nhiều bước cho tin nhắn tiếp theo</span></span>
+        <input type="checkbox" id="deepResearchToggle" class="sheet-switch" />
+      </label>
+    </div>
+
+    <!-- ================= MODEL SHEET (giống "Select model" của Claude) ================= -->
+    <div class="sheet-backdrop hidden" id="modelBackdrop"></div>
+    <div class="sheet" id="modelSheet">
+      <div class="sheet-handle"></div>
+      <div class="sheet-header">
+        <button class="sheet-close" id="modelCloseBtn">✕</button>
+        <div class="sheet-title">Chọn model</div>
+        <div style="width:24px"></div>
+      </div>
+      <div id="modelList" class="model-list"></div>
+      <div class="sheet-divider"></div>
+      <label class="sheet-row sheet-toggle-row">
+        <span class="sheet-row-icon">🧠</span>
+        <span class="sheet-row-text"><span class="sheet-row-title">Thinking</span><span class="sheet-row-sub">Bật suy luận sâu trước khi trả lời</span></span>
+        <input type="checkbox" id="thinkingToggle" class="sheet-switch" />
+      </label>
+    </div>
+
+    <!-- ================= HOMEWORK (GIẢI BÀI TẬP) PANEL ================= -->
+    <!-- Giờ là 1 khu vực RIÊNG, không dùng chung UI với Chat nữa: AI tự suy nghĩ và đưa ra
+         lời giải cụ thể từng bước (không phải bong bóng chat), kèm chế độ Flashcard và Đố câu hỏi
+         để ôn lại đúng nội dung vừa giải. -->
+    <section class="panel" id="panel-homework">
+      <div class="composer-results" id="hwResults">
+        <p class="hint" id="hwEmptyHint">📘 Nhập đề bài (có thể kèm ảnh chụp đề) — AI sẽ tự suy nghĩ từng bước rồi đưa ra lời giải cụ thể. Sau đó bạn có thể chuyển sang Flashcard hoặc Đố câu hỏi để ôn lại đúng nội dung này.</p>
+
+        <div class="hw-mode-tabs hidden" id="hwModeTabs">
+          <button class="hw-mode-tab active" data-hwmode="solution">📘 Lời giải</button>
+          <button class="hw-mode-tab" data-hwmode="flashcard">🗂️ Flashcard</button>
+          <button class="hw-mode-tab" data-hwmode="quiz">❓ Đố câu hỏi</button>
+        </div>
+
+        <div class="hw-solution hidden" id="hwSolutionView">
+          <div id="hwSolutionBody" class="hw-solution-body"></div>
+        </div>
+
+        <div class="hw-flashcards hidden" id="hwFlashcardView">
+          <div class="hw-flip-card" id="hwFlipCard">
+            <div class="hw-flip-inner" id="hwFlipInner">
+              <div class="hw-flip-face hw-flip-front" id="hwCardFront"></div>
+              <div class="hw-flip-face hw-flip-back" id="hwCardBack"></div>
+            </div>
+          </div>
+          <p class="hint" style="text-align:center">Chạm vào thẻ để lật · <span id="hwCardCounter">1 / 1</span></p>
+          <div class="row" style="justify-content:center">
+            <button id="hwCardPrevBtn">← Trước</button>
+            <button id="hwCardNextBtn">Tiếp →</button>
+          </div>
+        </div>
+
+        <div class="hw-quiz hidden" id="hwQuizView">
+          <p class="hw-quiz-progress" id="hwQuizProgress"></p>
+          <p class="hw-quiz-question" id="hwQuizQuestion"></p>
+          <div class="hw-quiz-options" id="hwQuizOptions"></div>
+          <div class="hw-quiz-explain hidden" id="hwQuizExplain"></div>
+          <div class="row" style="justify-content:flex-end">
+            <button id="hwQuizNextBtn" class="hidden">Câu tiếp →</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="attach-preview" id="hwAttachPreview"></div>
+      <div class="composer">
+        <textarea id="hwInput" class="composer-textarea" placeholder="Nhập đề bài cần giải..." rows="1"></textarea>
+        <div class="composer-toolbar">
+          <div class="composer-toolbar-left">
+            <button class="tool-btn plus-btn" id="hwPlusBtn" title="Đính kèm ảnh đề bài">＋</button>
+          </div>
+          <div class="composer-toolbar-right">
+            <button class="tool-btn composer-send-btn" id="hwSendBtn" title="Giải bài">➤</button>
+          </div>
+        </div>
+      </div>
+      <input type="file" id="hwImageInput" accept="image/*" class="hidden" />
+    </section>
+
+    <!-- ================= IMAGE PANEL ================= -->
+    <!-- Ô nhập giờ thiết kế giống hệt composer của Chat: viên thuốc nổi, cố định dưới màn hình. -->
+    <section class="panel" id="panel-image">
+      <div id="imgResults" class="grid-results composer-results"></div>
+      <div class="composer">
+        <textarea id="imgPrompt" class="composer-textarea" placeholder="Mô tả bức ảnh bạn muốn tạo..." rows="1"></textarea>
+        <div class="composer-toolbar">
+          <div class="composer-toolbar-left">
+            <label class="toggle-pill"><input type="checkbox" id="imgProToggle" /><span>✨ Pro</span></label>
+          </div>
+          <div class="composer-toolbar-right">
+            <button class="tool-btn composer-send-btn" id="imgGenBtn" title="Tạo ảnh">➤</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= VIDEO PANEL ================= -->
+    <section class="panel" id="panel-video">
+      <div class="composer-results">
+        <p class="hint">⚠️ Tạo video thường cần tài khoản Google AI có billing/quyền truy cập. Tài khoản free có thể báo lỗi — đó là giới hạn từ phía Google chứ không phải lỗi app. Video chạy nền qua Queue — bạn có thể chuyển sang panel khác trong lúc chờ, quay lại đây vẫn thấy tiến trình.</p>
+        <div id="vidJobs"></div>
+        <div id="vidResults" class="grid-results"></div>
+      </div>
+      <div class="composer">
+        <textarea id="vidPrompt" class="composer-textarea" placeholder="Mô tả video ngắn bạn muốn tạo..." rows="1"></textarea>
+        <div class="composer-toolbar">
+          <div class="composer-toolbar-left">
+            <label class="toggle-pill">⏱️ <input type="number" id="vidDuration" value="5" min="2" max="10" style="width:44px;border:none;background:transparent;padding:0" />s</label>
+          </div>
+          <div class="composer-toolbar-right">
+            <button class="tool-btn composer-send-btn" id="vidGenBtn" title="Tạo video">➤</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= ARTIFACTS PANEL ================= -->
+    <!-- Hợp nhất "Canvas" cũ: artifact có thể được tạo từ Chat, Code Editor hoặc Agent Mode,
+         tất cả đều hiện ở đây và có thể mở lại/preview/xem code/share/copy. -->
+    <section class="panel" id="panel-artifacts">
+      <div class="artifacts-layout" id="artifactsListView">
+        <div class="artifacts-toolbar">
+          <button id="artifactsClearAllBtn" title="Xóa toàn bộ artifacts" style="display:none">🗑️ Xóa tất cả</button>
+        </div>
+        <div id="artifactsGrid" class="artifacts-grid composer-results"></div>
+        <!-- Ô tạo artifact mới giờ nằm dưới cùng màn hình, giống hệt composer của Chat -->
+        <div class="composer">
+          <textarea id="artifactPrompt" class="composer-textarea" placeholder="Yêu cầu AI tạo 1 trang HTML/CSS/JS độc lập (vd: 'tạo máy tính đơn giản')..." rows="1"></textarea>
+          <div class="composer-toolbar">
+            <div class="composer-toolbar-left"><span class="hint">⚡ Artifact mới</span></div>
+            <div class="composer-toolbar-right">
+              <button class="tool-btn composer-send-btn" id="artifactGenBtn" title="Tạo Artifact mới">➤</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Chi tiết 1 artifact: Preview / Code / Share / Copy -->
+      <div class="artifact-detail hidden" id="artifactDetail">
+        <div class="artifact-detail-header">
+          <button id="artifactBackBtn">← Danh sách</button>
+          <span id="artifactDetailTitle" class="artifact-detail-title">Artifact</span>
+          <div class="artifact-detail-tabs">
+            <button class="artifact-tab active" data-tab="preview">👁️ Preview</button>
+            <button class="artifact-tab" data-tab="code">💻 Code</button>
+          </div>
+          <div class="artifact-detail-actions">
+            <button id="artifactCopyBtn" title="Sao chép code">📋 Copy</button>
+            <button id="artifactShareBtn" title="Chia sẻ">🔗 Share</button>
+            <button id="artifactDownloadBtn" title="Tải xuống">⬇ Tải</button>
+            <button id="artifactDeleteBtn" title="Xóa artifact này" class="danger-btn">🗑️ Xóa</button>
+          </div>
+        </div>
+        <div class="artifact-detail-body">
+          <div class="artifact-view active" id="artifactPreviewView">
+            <iframe id="artifactFrame" sandbox="allow-scripts allow-modals"></iframe>
+          </div>
+          <div class="artifact-view" id="artifactCodeView">
+            <textarea id="artifactCode" spellcheck="false"></textarea>
+            <button id="artifactRunBtn">▶ Chạy lại preview</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= SHARE SHEET ================= -->
+    <div class="sheet-backdrop hidden" id="shareBackdrop"></div>
+    <div class="sheet" id="shareSheet">
+      <div class="sheet-handle"></div>
+      <div class="sheet-header">
+        <button class="sheet-close" id="shareCloseBtn">✕</button>
+        <div class="sheet-title">Chia sẻ</div>
+        <div style="width:24px"></div>
+      </div>
+      <p class="hint" style="padding:0 4px 10px">Không có server lưu link công khai — bản sao dưới đây chứa toàn bộ nội dung, dán cho bất kỳ ai để họ xem lại.</p>
+      <textarea id="shareTextArea" readonly rows="8" style="width:100%;resize:vertical"></textarea>
+      <button id="shareCopyBtn" style="margin-top:10px">📋 Sao chép nội dung chia sẻ</button>
+    </div>
+
+    <!-- ================= CODE EDITOR PANEL ================= -->
+    <!-- Ô yêu cầu AI viết/sửa code giờ dùng chung thiết kế composer với Chat. -->
+    <section class="panel" id="panel-code">
+      <div class="code-layout">
+        <!-- KHUNG 1: hội thoại với AI — mọi lời giải thích, câu trả lời văn bản của AI hiện ở đây,
+             giống hệt khung Chat bình thường. Code KHÔNG bị nhét vào đây nữa. -->
+        <div class="code-chat-pane">
+          <div class="messages" id="codeChatMessages"></div>
+        </div>
+        <!-- KHUNG 2: code editor thật — chỉ chứa code AI xuất ra (hoặc bạn tự gõ/dán). Khi AI trả
+             lời có kèm khối code, code được tách riêng và đổ vào đây, không lẫn với lời giải thích. -->
+        <div class="code-editor-pane">
+          <div class="code-editor-toolbar">
+            <div class="code-editor-tabs">
+              <button type="button" class="code-editor-tab active" id="codeTabEdit" data-ctab="edit">💻 Code</button>
+              <button type="button" class="code-editor-tab" id="codeTabPreview" data-ctab="preview">👁️ Preview</button>
+            </div>
+            <div class="row" style="gap:6px">
+              <button type="button" id="codeCopyBtn" title="Sao chép">📋</button>
+              <button type="button" id="codeDownloadBtn" title="Tải xuống">⬇</button>
+              <button type="button" id="codeToArtifactBtn" title="Lưu thành Artifact (file riêng)">🧩</button>
+            </div>
+          </div>
+          <div class="code-editor-view active" id="codeEditView">
+            <textarea id="codeEditor" placeholder="// Code sẽ hiện ở đây khi bạn nhờ AI viết, hoặc tự gõ/dán trực tiếp..." spellcheck="false"></textarea>
+          </div>
+          <div class="code-editor-view" id="codePreviewView">
+            <iframe id="codePreviewFrame" sandbox="allow-scripts allow-modals"></iframe>
+          </div>
+        </div>
+      </div>
+      <div class="composer">
+        <textarea id="codeInstruction" class="composer-textarea" placeholder="Hỏi AI hoặc nhờ viết/sửa code..." rows="1"></textarea>
+        <div class="composer-toolbar">
+          <div class="composer-toolbar-left"><span class="hint">🤖 Trả lời hiện bên trái · Code hiện bên phải</span></div>
+          <div class="composer-toolbar-right">
+            <button class="tool-btn composer-send-btn" id="codeAskBtn" title="Gửi cho AI">➤</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= VOICE PANEL ================= -->
+    <section class="panel" id="panel-voice">
+      <div class="voice-center">
+        <button id="voiceBigBtn">🎤</button>
+        <p id="voiceStatus">Nhấn để nói chuyện bằng giọng nói (theo lượt)</p>
+        <div id="voiceTranscript"></div>
+        <audio id="voiceAudioPlayer" controls class="hidden"></audio>
+      </div>
+    </section>
+
+    <!-- ================= AGENT MODE PANEL ================= -->
+    <!-- Hợp nhất: Agent Mode = 1 mục duy nhất điều khiển trình duyệt THẬT (Playwright), có 2 cách dùng
+         dưới dạng 2 tab con:
+         - "🚀 Tự động": bạn chỉ giao nhiệm vụ, agent đa công cụ TỰ QUYẾT ĐỊNH ở từng bước — tìm web,
+           đọc 1 trang, lưu file, hoặc khi cần THAO TÁC thật (điền form, bấm nút, đặt lịch...) thì tự mở
+           trình duyệt thật ngay tại đây.
+         - "🌍 Trình duyệt thật": khi BẠN đã biết chắc ngay từ đầu cần thao tác trên web, tự giao URL bắt
+           đầu + nhiệm vụ, agent mở hẳn 1 phiên trình duyệt thật, bạn xem trực tiếp qua screenshot từng bước.
+         Khác Deep Research: Deep Research chỉ đọc/tổng hợp, không bao giờ thao tác trên trang.
+         Cả 2 tab đều LUÔN dừng lại xin phép trước hành động nhạy cảm. -->
+    <section class="panel" id="panel-agent">
+      <div class="agent-tabs">
+        <button class="agent-tab-btn active" data-agent-tab="research">🚀 Tự động</button>
+        <button class="agent-tab-btn" data-agent-tab="browser">🌍 Trình duyệt thật</button>
+      </div>
+
+      <div class="agent-tab-view active" id="agentView-research">
+        <div class="composer-results">
+          <p class="hint">🚀 Agent Mode (tự động) — agent đa công cụ: tự lên kế hoạch, tìm kiếm/đọc web, lưu file, và khi cần sẽ tự điều khiển trình duyệt thật để thao tác (luôn xin phép trước hành động nhạy cảm).</p>
+          <div id="agentLog"></div>
+
+          <!-- Hiện ra khi Agent tự quyết định cần dùng trình duyệt thật cho 1 bước -->
+          <div class="agent-browser-screen-wrap hidden" id="agentInlineBrowserWrap">
+            <p class="hint" id="agentInlineBrowserUrl">Agent đang mở trình duyệt thật...</p>
+            <img id="agentInlineBrowserScreen" class="agent-browser-screen" alt="Màn hình trình duyệt của Agent" />
+          </div>
+          <!-- Xin phép khi Agent muốn thực hiện hành động nhạy cảm trong lúc điều khiển trình duyệt -->
+          <div class="agent-approval-bar hidden" id="agentInlineApprovalBar">
+            <span id="agentInlineApprovalText">⚠️ Agent muốn thực hiện 1 hành động cần xác nhận...</span>
+            <div class="row" style="gap:6px">
+              <button id="agentInlineApproveBtn" class="agent-approve-btn">✅ Cho phép</button>
+              <button id="agentInlineRejectBtn" class="agent-reject-btn">❌ Từ chối</button>
+            </div>
+          </div>
+        </div>
+        <div class="composer">
+          <textarea id="agentTask" class="composer-textarea" placeholder="Giao nhiệm vụ cho Agent (vd: 'Tìm và so sánh 3 laptop lập trình dưới 20 triệu' hoặc 'Đặt lịch hẹn trên trang X')..." rows="1"></textarea>
+          <div class="composer-toolbar">
+            <div class="composer-toolbar-left"><span class="hint">Đa công cụ — tự quyết định có cần thao tác trên trang hay không</span></div>
+            <div class="composer-toolbar-right">
+              <button class="tool-btn composer-send-btn" id="agentRunBtn" title="Chạy Agent">🚀</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Tab "Trình duyệt thật": trước đây là mục riêng "Điều khiển trình duyệt thật", giờ gộp vào
+           đây làm tab con của Agent Mode. Dùng khi bạn chủ động biết chắc cần thao tác trên web ngay
+           từ đầu, thay vì để Agent tự quyết định như tab "Tự động". Có sandbox preview xem trực tiếp
+           trang đang chạy + LUÔN dừng lại xin phép trước hành động nhạy cảm. -->
+      <div class="agent-tab-view" id="agentView-browser">
+        <div class="agent-browser-layout">
+          <div class="agent-browser-view-pane">
+            <div class="agent-browser-toolbar">
+              <span class="hint" id="agentBrowserUrl">Chưa mở phiên nào</span>
+              <div class="row" style="gap:6px">
+                <button id="agentOpenTabBtn" title="Mở trang này trong tab riêng của trình duyệt bạn">↗ Mở tab riêng</button>
+                <button id="agentCloseSessionBtn" title="Đóng phiên trình duyệt">✕ Đóng phiên</button>
+              </div>
+            </div>
+            <!-- Sandbox preview: hiển thị ảnh chụp màn hình trực tiếp của trình duyệt thật trên server.
+                 Đây KHÔNG phải iframe nhúng trực tiếp trang đích (nhiều trang chặn iframe) mà là ảnh
+                 chụp cập nhật sau mỗi hành động — xem được ngay trên điện thoại. -->
+            <div class="agent-browser-screen-wrap">
+              <img id="agentBrowserScreen" class="agent-browser-screen" alt="Màn hình trình duyệt agent" />
+              <p class="hint" id="agentBrowserEmptyHint">Nhập URL trang bạn muốn rồi bấm ↪ Đi tới để agent mở/điều hướng ngay tới đó, hoặc nhập nhiệm vụ rồi bấm 🚀 để agent tự thao tác — agent sẽ mở trình duyệt thật trên server và bạn xem trực tiếp ở đây.</p>
+            </div>
+            <!-- Xin phép khi agent muốn thực hiện hành động nhạy cảm -->
+            <div class="agent-approval-bar hidden" id="agentApprovalBar">
+              <span id="agentApprovalText">⚠️ Agent muốn thực hiện 1 hành động cần xác nhận...</span>
+              <div class="row" style="gap:6px">
+                <button id="agentApproveBtn" class="agent-approve-btn">✅ Cho phép</button>
+                <button id="agentRejectBtn" class="agent-reject-btn">❌ Từ chối</button>
+              </div>
+            </div>
+          </div>
+          <div class="agent-browser-log-pane">
+            <div id="agentBrowserLog" class="agent-browser-log"></div>
+          </div>
+        </div>
+        <div class="composer">
+          <div class="row" style="gap:6px;margin-bottom:6px">
+            <input type="text" id="agentBrowserStartUrl" placeholder="https://... (trang bạn muốn agent mở/điều khiển)" style="flex:1" />
+            <button id="agentBrowserGotoBtn" title="Điều hướng ngay tới URL này (dùng được cả khi phiên đang chạy)">↪ Đi tới</button>
+          </div>
+          <textarea id="agentBrowserTask" class="composer-textarea" placeholder="Nhiệm vụ cho agent (vd: 'Tìm số điện thoại liên hệ trên trang này')..." rows="1"></textarea>
+          <div class="composer-toolbar">
+            <div class="composer-toolbar-left">
+              <button id="agentBrowserStopBtn" class="hidden" title="Dừng agent">⏹ Dừng</button>
+            </div>
+            <div class="composer-toolbar-right">
+              <button class="tool-btn composer-send-btn" id="agentBrowserRunBtn" title="Bắt đầu Agent điều khiển trình duyệt">🚀</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+
+    <!-- ================= MỞ WEB & HỎI AI (mục riêng, tách khỏi Deep Research và Agent Mode) ================= -->
+    <!-- KHÔNG thao tác gì trên trang (không click/điền/gửi) — chỉ mở 1 URL cụ thể trong khung sandbox
+         để bạn TỰ XEM trực tiếp, đồng thời backend tải nội dung trang đó về cho AI đọc và trả lời câu
+         hỏi của bạn. Dùng khi bạn đã có sẵn 1 URL và chỉ cần hỏi AI về nội dung trang đó. -->
+    <section class="panel" id="panel-webask">
+      <div class="agent-browser-layout">
+        <div class="agent-browser-view-pane">
+          <div class="agent-browser-toolbar">
+            <span class="hint" id="webaskUrlLabel">Chưa mở trang nào</span>
+            <button id="webaskOpenTabBtn" title="Mở trang này trong tab riêng của trình duyệt bạn">↗ Mở tab riêng</button>
+          </div>
+          <!-- Khung sandbox: xem trực tiếp trang trong iframe (nhiều trang chặn nhúng iframe vì
+               header X-Frame-Options/CSP — khi đó dùng nút "Mở tab riêng" ở trên để xem full). -->
+          <iframe id="webaskFrame" class="webask-frame" sandbox="allow-scripts allow-popups allow-popups-to-escape-sandbox allow-forms"></iframe>
+          <p class="hint" id="webaskEmptyHint">Dán URL bên dưới rồi bấm 🌐 Mở để xem trang trong khung sandbox này.</p>
+        </div>
+      </div>
+      <div class="composer-results" id="webaskResults"></div>
+      <div class="composer">
+        <input type="text" id="webaskUrl" placeholder="https://... (trang muốn mở & hỏi)" style="margin-bottom:6px" />
+        <textarea id="webaskQuestion" class="composer-textarea" placeholder="Câu hỏi về trang này (bỏ trống = tóm tắt nội dung chính)..." rows="1"></textarea>
+        <div class="composer-toolbar">
+          <div class="composer-toolbar-left"><span class="hint">Chỉ đọc — AI không thao tác gì trên trang</span></div>
+          <div class="composer-toolbar-right">
+            <button class="tool-btn" id="webaskOpenBtn" title="Mở trang trong khung sandbox">🌐 Mở</button>
+            <button class="tool-btn composer-send-btn" id="webaskAskBtn" title="Hỏi AI về trang này">➤</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= LIBRARY (THƯ VIỆN) PANEL ================= -->
+    <section class="panel" id="panel-library">
+      <div class="tool-form">
+        <div class="row">
+          <select id="libFolderFilter">
+            <option value="">Tất cả</option>
+            <option value="images">🖼️ Ảnh</option>
+            <option value="videos">🎬 Video</option>
+            <option value="audio">🔊 Âm thanh</option>
+            <option value="uploads">📎 File upload</option>
+          </select>
+          <button id="libRefreshBtn">🔄 Tải lại</button>
+        </div>
+        <p class="hint">File ảnh/video/âm thanh AI tạo ra được tự động lưu ở đây, xem lại bất cứ lúc nào — kể cả sau khi tải lại trang.</p>
+      </div>
+      <div id="libResults" class="grid-results"></div>
+      <button id="libLoadMoreBtn" style="display:none">Tải thêm</button>
+    </section>
+
+    <!-- ================= SETTINGS PANEL ================= -->
+    <section class="panel" id="panel-settings">
+      <h2>Cài đặt</h2>
+      <p>API key được cấu hình ở file <code>.env</code> phía backend (không nhập ở giao diện để tránh lộ key).</p>
+
+      <h3>🔊 Giọng nói AI (đọc to)</h3>
+      <p class="hint">Áp dụng cho nút "🔊 Đọc to" ở mỗi tin nhắn. Mặc định dùng giọng đọc thật từ Gemini API (cần <code>GEMINI_API_KEY</code>); nếu lỗi/hết quota sẽ tự chuyển sang giọng có sẵn của trình duyệt.</p>
+      <div class="tool-form" style="max-width:520px">
+        <label class="toggle-pill" style="width:fit-content">
+          <input type="checkbox" id="ttsEngineToggle" checked />
+          <span>Dùng giọng thật từ Gemini API (tắt = chỉ dùng giọng trình duyệt)</span>
+        </label>
+        <div id="geminiVoiceSection">
+          <div class="row" style="flex-wrap:wrap;gap:8px;margin-top:8px">
+            <!-- 8 giọng prebuilt cố định của Gemini TTS (gemini-3.1-flash-tts-preview) -->
+          </div>
+          <div id="geminiVoiceGrid" class="tts-voice-grid"></div>
+        </div>
+        <div id="browserVoiceSection" class="hidden">
+          <label style="display:block;margin-top:10px">Giọng trình duyệt:
+            <select id="ttsVoiceSelect" style="width:100%;margin-top:4px"></select>
+          </label>
+        </div>
+        <div class="row" style="margin-top:10px">
+          <label style="flex:1">Tốc độ đọc: <span id="ttsRateLabel">1.0x</span>
+            <input type="range" id="ttsRateRange" min="0.5" max="2" step="0.1" value="1" style="width:100%;margin-top:4px" />
+          </label>
+        </div>
+      </div>
+
+      <h3>🗑️ Đã xoá gần đây</h3>
+      <p class="hint">Hội thoại bị xoá sẽ nằm ở đây tối đa 7 ngày trước khi bị xoá vĩnh viễn. Bạn có thể khôi phục hoặc xoá hẳn ngay bất cứ lúc nào.</p>
+      <button id="trashRefreshBtn">🔄 Tải lại</button>
+      <div id="trashList" class="trash-list"></div>
+
+      <h3>Connectors (sắp có)</h3>
+      <ul class="connector-list">
+        <li>📧 Gmail <span class="badge">sắp có</span></li>
+        <li>🗂️ Google Drive <span class="badge">sắp có</span></li>
+        <li>📝 Notion <span class="badge">sắp có</span></li>
+        <li>💬 Slack <span class="badge">sắp có</span></li>
+      </ul>
+      <p class="hint">Đây là các nút placeholder — khi bạn muốn, mình sẽ nối thật qua MCP hoặc API riêng của từng dịch vụ.</p>
+    </section>
+
+  </main>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>
