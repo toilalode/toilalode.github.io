@@ -2,7 +2,7 @@
 // CHỈ cache "app shell" (HTML/CSS/JS/icon tĩnh) để mở app nhanh hơn lần sau — KHÔNG cache bất kỳ
 // request nào tới API (/api/...) hay tới worker, để luôn lấy dữ liệu chat/tài khoản mới nhất,
 // tránh lặp lại đúng vấn đề "cache cũ khiến UI không cập nhật" từng gặp phải với trình duyệt.
-const CACHE_NAME = 'velocitix-shell-v2';
+const CACHE_NAME = 'velocitix-shell-v3';
 const SHELL_FILES = ['./', './index.html', './style.css', './app.js', './manifest.json'];
 
 self.addEventListener('install', (event) => {
