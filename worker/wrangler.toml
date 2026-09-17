@@ -88,14 +88,8 @@ dataset = "my_ai_metrics"
 # onboarding@resend.dev chỉ gửi được tới đúng email bạn dùng để đăng ký Resend (dùng để test).
 
 
-# ---- Đăng nhập Google ----
-# GOOGLE_CLIENT_ID không phải bí mật (nó lộ công khai trong code frontend), nên để thẳng ở đây.
-# Lấy tại: https://console.cloud.google.com/apis/credentials
 [vars]
 GOOGLE_CLIENT_ID = "752017566752-sujjhluldnk408m7cd09g4g4vdfuonte.apps.googleusercontent.com"
-# id tài khoản của CHỦ APP (không bí mật, chỉ là 1 id) — để worker/src/geminiKeys.js biết khi nào
-# phát GEMINI_API_KEY_OWNER thay vì key trong pool dùng chung. Lấy id thật trong bảng `users` ở D1
-# (id Google "sub", hoặc "local:ban@email.com" nếu đăng nhập bằng email/mật khẩu) rồi thay vào đây:
 OWNER_USER_ID = "117195311521159900631"
 
 # ---- Durable Object: ghim vùng cố định khi gọi Gemini API ----
