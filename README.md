@@ -10,19 +10,13 @@ npm install
 cp .env.example .env
 ```
 
-Mở file `.env`, dán API key free của bạn (lấy tại https://aistudio.google.com/apikey):
-
-```
-GEMINI_API_KEY=AIza...
-```
-
 Chạy:
 
 ```bash
 npm start
 ```
 
-Mở trình duyệt: `http://localhost:3000`
+Mở trình duyệt: `http://localhost:8080`
 
 ## Cấu trúc
 
@@ -94,7 +88,6 @@ Ghi chú:
 
 ## Vài điều cần biết trước khi dùng thật
 
-- **Antigravity và Gemini Spark là sản phẩm riêng của Google** (chạy trên hạ tầng cloud/VM riêng, tích hợp sâu Gmail/Workspace) — không có API public để nhúng y hệt. "Agent Mode" trong app này là bản tự làm, lấy cảm hứng tương tự (tự lên kế hoạch, tự chọn công cụ, kể cả điều khiển trình duyệt thật khi cần), chạy hoàn toàn qua Gemini API công khai.
 - **Agent Mode (2 tab con) có 2 bản chạy song song, tuỳ bạn deploy kiểu nào**:
   - **Bản Node (`backend/`)**: dùng **Playwright** thật — cần cài Chromium trên máy chạy backend (xem hướng dẫn `npx playwright install chromium` bên dưới). Phù hợp khi bạn tự chạy server/VPS riêng.
   - **Bản Cloudflare Worker (`worker/`)**: dùng **Cloudflare Browser Rendering** (`@cloudflare/puppeteer`) — trình duyệt Chrome thật chạy ngay trên hạ tầng Cloudflare, **không cần cài Chromium/Playwright ở đâu cả**, không cần VPS. Đây là lựa chọn hợp lý nếu bạn deploy qua Git integration (không có server riêng để cài Playwright). Free plan giới hạn vài phiên đồng thời/phút và tối đa ~10 phút "browser time"/ngày — đủ dùng thử cá nhân, cần nhiều hơn thì nâng lên Workers Paid. Cả 2 bản đều giữ nguyên nguyên tắc **luôn xin phép trước hành động nhạy cảm**.
