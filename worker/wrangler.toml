@@ -1,4 +1,4 @@
-name = "my-ai-worker"
+   name = "my-ai-worker"
 main = "src/index.js"
 compatibility_date = "2026-01-01"
 compatibility_flags = ["nodejs_compat"]
@@ -17,7 +17,7 @@ enabled = true
 #   Vectorize: 30 triệu "queried dimensions"/tháng, 5 triệu "stored dimensions"
 # App cá nhân dùng bình thường sẽ không chạm các giới hạn này.
 # =====================================================================
-
+ 
 
 # ---- Browser Rendering (trước đây "Browser Rendering", giờ Cloudflare gọi "Browser Run") ----
 # Cho phép Worker điều khiển 1 trình duyệt Chrome thật chạy trên hạ tầng Cloudflare, qua bản fork
@@ -62,11 +62,6 @@ max_batch_size = 1
 max_retries = 2
 dead_letter_queue = "my-ai-video-queue-dlq"
 
-# Tạo video (Veo) cần poll nhiều vòng trong vài phút -> không tăng giới hạn này,
-# consumer rất dễ bị Cloudflare tự dừng giữa chừng (job kẹt "pending" mãi mãi,
-# không có lỗi rõ ràng nào để debug). Nâng lên tối đa cho phép (5 phút CPU time).
-[limits]
-cpu_ms = 300000
 
 # ---- Vectorize (tìm kiếm ngữ nghĩa trong lịch sử chat) ----
 # Bước 1: tạo index (chạy 1 lần) — 768 chiều khớp với model embedding text-embedding-004 của Gemini:
