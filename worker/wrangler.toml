@@ -62,6 +62,12 @@ max_batch_size = 1
 max_retries = 2
 dead_letter_queue = "my-ai-video-queue-dlq"
 
+# Tạo video (Veo) cần poll nhiều vòng trong vài phút -> không tăng giới hạn này,
+# consumer rất dễ bị Cloudflare tự dừng giữa chừng (job kẹt "pending" mãi mãi,
+# không có lỗi rõ ràng nào để debug). Nâng lên tối đa cho phép (5 phút CPU time).
+[limits]
+cpu_ms = 300000
+
 # ---- Vectorize (tìm kiếm ngữ nghĩa trong lịch sử chat) ----
 # Bước 1: tạo index (chạy 1 lần) — 768 chiều khớp với model embedding text-embedding-004 của Gemini:
 #   wrangler vectorize create my-ai-chat-index --dimensions=768 --metric=cosine
