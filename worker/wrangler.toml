@@ -95,7 +95,7 @@ OWNER_USER_ID = "117195311521159900631"
 # Dùng để build đúng URL callback OAuth (worker/src/mcpOAuth.js) và redirect người dùng quay lại
 # app sau khi đăng nhập OAuth xong. KHÔNG có dấu "/" ở cuối.
 API_BASE_URL = "https://my-ai-worker.vudanhquy1002.workers.dev"
-APP_URL = "https://toilalode.github.io
+APP_URL = "https://toilalode.github.io"
 
 # ---- Durable Object: ghim vùng cố định khi gọi Gemini API ----
 # Không cần lệnh tạo trước, không cần thẻ (Durable Objects miễn phí từ 2025).
