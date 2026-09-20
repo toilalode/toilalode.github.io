@@ -88,11 +88,9 @@ dataset = "my_ai_metrics"
 # Chỉ verify domain riêng ở resend.com/domains mới gửi được cho MỌI email; nếu chưa verify domain,
 # onboarding@resend.dev chỉ gửi được tới đúng email bạn dùng để đăng ký Resend (dùng để test).
 
-
 [vars]
 GOOGLE_CLIENT_ID = "752017566752-sujjhluldnk408m7cd09g4g4vdfuonte.apps.googleusercontent.com"
 OWNER_USER_ID = "117195311521159900631"
-
 
 # Dùng để build đúng URL callback OAuth (worker/src/mcpOAuth.js) và redirect người dùng quay lại
 # app sau khi đăng nhập OAuth xong. KHÔNG có dấu "/" ở cuối.
