@@ -6,7 +6,7 @@
 const API_BASE = 'https://my-ai-worker.vudanhquy1002.workers.dev';
 // Client ID lấy từ Google Cloud Console -> APIs & Services -> Credentials (KHÔNG phải bí mật,
 // Client ID luôn lộ công khai trong code frontend, an toàn để để thẳng ở đây).
-const GOOGLE_CLIENT_ID = '752017566752-sujjhluldnk408m7cd09g4g4vdfuonte.apps.googleusercontent.com';
+const GOOGLE_CLIENT_ID = '752017566752-vbdlh19akir9mt8bmk1derla59fp3h22.apps.googleusercontent.com';
 
 // Danh sách hội thoại (sidebar) — PHẢI khai báo sớm vì loadConversations() có thể được gọi ngay
 // từ bootAuth() (khi người dùng đã có session lưu sẵn từ trước, F5 vào là đăng nhập luôn), tức là
