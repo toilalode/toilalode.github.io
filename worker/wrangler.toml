@@ -89,7 +89,7 @@ dataset = "my_ai_metrics"
 # onboarding@resend.dev chỉ gửi được tới đúng email bạn dùng để đăng ký Resend (dùng để test).
 
 [vars]
-GOOGLE_CLIENT_ID = "752017566752-sujjhluldnk408m7cd09g4g4vdfuonte.apps.googleusercontent.com"
+GOOGLE_CLIENT_ID = "752017566752-vbdlh19akir9mt8bmk1derla59fp3h22.apps.googleusercontent.com"
 OWNER_USER_ID = "117195311521159900631"
 
 # Dùng để build đúng URL callback OAuth (worker/src/mcpOAuth.js) và redirect người dùng quay lại
