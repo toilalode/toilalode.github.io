@@ -105,6 +105,20 @@ APP_URL = "https://toilalode.github.io"
 name = "GEMINI_PROXY"
 class_name = "GeminiProxyDO"
 
+# ---- Durable Object: relay WebSocket 2 chiều cho Voice LIVE (Gemini Live API) ----
+# Mỗi phiên trò chuyện bằng giọng nói real-time tạo 1 instance riêng (worker/src/index.js dùng
+# newUniqueId()) — DO này giữ sống 2 WebSocket (browser <-> DO <-> Gemini) suốt cuộc trò chuyện.
+# Không cần lệnh tạo trước, không cần thẻ — như GEMINI_PROXY ở trên.
+[[durable_objects.bindings]]
+name = "GEMINI_LIVE"
+class_name = "GeminiLiveDO"
+
 [[migrations]]
 tag = "v1"
 new_sqlite_classes = ["GeminiProxyDO"]
+
+# Migration RIÊNG cho class MỚI (GeminiLiveDO) — không được gộp vào tag "v1" ở trên vì tag đó đã
+# deploy rồi (Cloudflare không cho sửa lại 1 migration tag đã áp dụng, chỉ cho thêm tag mới nối tiếp).
+[[migrations]]
+tag = "v2"
+new_classes = ["GeminiLiveDO"]
