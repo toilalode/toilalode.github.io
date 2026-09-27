@@ -552,7 +552,7 @@ export default {
         // NGAY từ đầu (không "thử lại" giữa chừng được) — ghim mặc định 'apac' (gần Việt Nam
         // nhất, khả năng cao được Google chấp nhận), cho phép đổi thủ công qua ?region= nếu vùng
         // mặc định vẫn bị chặn.
-        const region = url.searchParams.get('region') || 'apac','wnam,'enam','weur','eeur','oc','sam';
+        const region = url.searchParams.get('region') || 'wnam';
         // 1 Durable Object riêng cho MỖI phiên trò chuyện (id ngẫu nhiên) — không dùng chung 1 id
         // cố định như GeminiProxyDO, vì mỗi phiên voice cần state audio riêng, không được lẫn với
         // phiên của người khác hay phiên trước đó của cùng 1 người.
