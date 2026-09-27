@@ -26,6 +26,7 @@ binding = "MY_AI_DB"
 database_name = "my-ai-db"
 database_id = "70fd971e-3152-43f1-bad4-4353e5762da5"
 
+[[kv_namespaces]]
 binding = "MY_AI_KV"
 id = "57e00036a30b45a2821cb29a18e80f76"
 
