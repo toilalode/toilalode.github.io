@@ -16,7 +16,7 @@ Chạy:
 npm start
 ```
 
-Mở trình duyệt: `http://localhost:3000`
+Mở trình duyệt: `http://localhost:8080`
 
 ## Cấu trúc
 
@@ -106,14 +106,14 @@ Ghi chú:
 
 ```bash
 cd worker
-npm install                  # cài @cloudflare/puppeteer (Browser Rendering) + wrangler
+npm install                  # cài @cloudflare/playwright (Browser Run) + wrangler
 npm install -g wrangler      # nếu chưa có bản global
 wrangler login
 wrangler secret put GEMINI_API_KEY   # dán API key free vào khi được hỏi
 wrangler deploy
 ```
 
-> Không cần bước cài Chromium/Playwright riêng nào cho Worker — Browser Rendering (`[browser]` binding `MYBROWSER` trong `wrangler.toml`) chạy sẵn trên hạ tầng Cloudflare, tự động có khi deploy.
+> Không cần bước cài Chromium riêng nào cho Worker — Browser Run (`[browser]` binding `MYBROWSER` trong `wrangler.toml`) chạy sẵn trên hạ tầng Cloudflare, tự động có khi deploy.
 
 Sau khi deploy xong, Wrangler in ra 1 URL dạng:
 `https://my-ai-worker.<ten-subdomain-cua-ban>.workers.dev`
@@ -146,7 +146,7 @@ Sau khi deploy xong, Wrangler in ra 1 URL dạng:
 | Global coordination / stateful serverless | **Durable Objects** | App cộng tác, đồng bộ nhiều client, WebSocket real-time, lưu trữ transactional nhất quán mạnh | ✅ Đã dùng — `GeminiProxyDO` (ghim vùng gọi Gemini REST) và `GeminiLiveDO` (`worker/src/geminiLiveDO.js`, relay WebSocket 2 chiều cho Voice Live) |
 | Streaming ingestion | **Pipelines** | Ingest dữ liệu dạng stream: clickstream, telemetry/log, dữ liệu có cấu trúc để query | ⛔ Chưa dùng — chưa có nhu cầu thu log/clickstream ở quy mô lớn |
 | Time-series metrics | **Analytics Engine** | Ghi/truy vấn metric high-cardinality, số liệu sử dụng, service-level telemetry | ✅ Đã dùng — `worker/src/analytics.js`, ghi số request/model/lỗi ở các endpoint chat/image/video/tts, xem tại dashboard Cloudflare (Workers & Pages → Analytics Engine) |
-| Headless browser tại edge | **Browser Rendering** (Browser Run) | Điều khiển Chrome thật (screenshot, click, điền form...) cho cả 2 tab con của Agent Mode | ✅ Đã dùng — `worker/src/browserAgent.js` (binding `MYBROWSER`), thay thế Playwright cho bản deploy Cloudflare |
+| Headless browser tại edge | **Browser Run** | Điều khiển Chrome thật (screenshot, click, điền form...) cho cả 2 tab con của Agent Mode | ✅ Đã dùng — `worker/src/browserAgent.js` (binding `MYBROWSER`), thay thế Playwright cho bản deploy Cloudflare |
 
 Ghi chú: **Hyperdrive** và **Pipelines** chưa cần thiết cho quy mô app cá nhân hiện tại — Hyperdrive chỉ có tác dụng khi có 1 Postgres/MySQL bên ngoài Cloudflare cần tăng tốc kết nối, dự án này không có DB ngoài nào nên **cố tình không dùng**. Có thể bổ sung Pipelines sau nếu cần dashboard theo dõi usage/lỗi theo thời gian ở quy mô lớn hơn Analytics Engine hiện có.
 
