@@ -16,7 +16,7 @@
 // mở kết nối RA NGOÀI (constructor đó chỉ có ở trình duyệt) — phải dùng fetch() với header
 // Upgrade: websocket rồi lấy response.webSocket, đây là cách riêng của Cloudflare.
 
-const GEMINI_LIVE_MODEL = 'gemini-3.1-flash-live-preview'; // free tier, dòng 3.x (không thuộc diện shutdown 16/10/2026 như bản 2.5)
+const GEMINI_LIVE_MODEL = 'gemini-3.8-live'; // free tier, dòng 3.x (không thuộc diện shutdown 16/10/2026 như bản 2.5)
 const GEMINI_LIVE_WS_BASE = 'https://generativelanguage.googleapis.com/ws/';
 
 export class GeminiLiveDO {
