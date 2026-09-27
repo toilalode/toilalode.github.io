@@ -1,0 +1,20 @@
+{
+  "name": "Velocitix AI",
+  "short_name": "Velocitix",
+  "description": "Trợ lý AI trò chuyện, tạo ảnh, tạo video, Deep Research và nhiều hơn nữa.",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#050c1f",
+  "theme_color": "#0a1a3d",
+  "lang": "vi",
+  "permissions_policy": {
+    "microphone": ["self"]
+  },
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
