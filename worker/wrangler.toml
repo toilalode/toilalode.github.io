@@ -18,40 +18,17 @@ enabled = true
 # App cá nhân dùng bình thường sẽ không chạm các giới hạn này.
 # =====================================================================
  
-
-# ---- Browser Rendering (trước đây "Browser Rendering", giờ Cloudflare gọi "Browser Run") ----
-# Cho phép Worker điều khiển 1 trình duyệt Chrome thật chạy trên hạ tầng Cloudflare, qua bản fork
-# chính thức của Playwright (GA từ 09/2025) — dùng cho 2 tính năng "Agent Mode" (khi cần thao tác
-# web) và "Điều khiển trình duyệt thật". KHÔNG cần cài Chromium/Playwright, không cần lệnh tạo
-# trước, không cần thẻ ở mức free (giới hạn: vài phiên đồng thời/phút, tối đa 10 phút "browser
-# time"/ngày trên free plan — nâng lên Workers Paid nếu cần nhiều hơn). Cần
-# `compatibility_flags = ["nodejs_compat"]` ở trên + `compatibility_date` từ 2025-09-15 trở lên
-# (đã đáp ứng), và cài package `@cloudflare/playwright` (đã có trong package.json).
 [browser]
 binding = "MYBROWSER"
 
-# ---- D1 (lưu lịch sử chat + hồ sơ người dùng) ----
-# Bước 1: tạo database (chạy 1 lần):  wrangler d1 create my-ai-db
-# Bước 2: copy "database_id" mà lệnh trên in ra, dán vào dòng database_id bên dưới
-# Bước 3: tạo bảng:  wrangler d1 execute my-ai-db --file=./schema.sql --remote
 [[d1_databases]]
 binding = "MY_AI_DB"
 database_name = "my-ai-db"
 database_id = "70fd971e-3152-43f1-bad4-4353e5762da5"
 
-# ---- Workers KV (cấu hình app + cache nhanh + trạng thái job video) ----
-# Bước 1: tạo namespace (chạy 1 lần):  wrangler kv namespace create MY_AI_KV
-# Bước 2: copy "id" mà lệnh trên in ra, dán vào dòng id bên dưới
-[[kv_namespaces]]
 binding = "MY_AI_KV"
 id = "57e00036a30b45a2821cb29a18e80f76"
 
-# ---- Queues (xử lý video generate chạy nền, tránh timeout 30s của Worker) ----
-# Free plan: tin nhắn trong queue chỉ giữ tối đa 24h (không chỉnh được),
-# đủ dùng vì video xử lý xong trong vài phút là lấy kết quả luôn.
-# Bước 1: tạo queue (chạy 1 lần):
-#   wrangler queues create my-ai-video-queue
-#   wrangler queues create my-ai-video-queue-dlq   (queue chứa job lỗi, không bắt buộc nhưng nên có)
 [[queues.producers]]
 binding = "VIDEO_QUEUE"
 queue = "my-ai-video-queue"
@@ -62,53 +39,24 @@ max_batch_size = 1
 max_retries = 2
 dead_letter_queue = "my-ai-video-queue-dlq"
 
-
-# ---- Vectorize (tìm kiếm ngữ nghĩa trong lịch sử chat) ----
-# Bước 1: tạo index (chạy 1 lần) — 768 chiều khớp với model embedding text-embedding-004 của Gemini:
-#   wrangler vectorize create my-ai-chat-index --dimensions=768 --metric=cosine
 [[vectorize]]
 binding = "MY_AI_VECTORIZE"
 index_name = "my-ai-chat-index"
 
-# ---- Analytics Engine (theo dõi số request / model / lỗi theo thời gian) ----
-# Không cần lệnh tạo trước — chỉ cần khai báo binding, Cloudflare tự tạo dataset
-# khi Worker ghi data point đầu tiên. Xem số liệu tại dashboard Cloudflare
-# (Workers & Pages -> Analytics Engine) hoặc query bằng SQL API.
 [[analytics_engine_datasets]]
 binding = "MY_AI_ANALYTICS"
 dataset = "my_ai_metrics"
-
-# GEMINI_API_KEY không đặt ở đây (file này có thể bị commit lên git).
-# Đặt bằng lệnh:  wrangler secret put GEMINI_API_KEY
-
-# RESEND_API_KEY (dùng cho chức năng "Quên mật khẩu" gửi email) — cũng là secret, KHÔNG đặt ở đây.
-# Đặt bằng lệnh:  wrangler secret put RESEND_API_KEY
-# Lấy tại: https://resend.com/api-keys
-# (Tùy chọn) RESEND_FROM_EMAIL — địa chỉ gửi, mặc định dùng onboarding@resend.dev nếu không đặt.
-# Chỉ verify domain riêng ở resend.com/domains mới gửi được cho MỌI email; nếu chưa verify domain,
-# onboarding@resend.dev chỉ gửi được tới đúng email bạn dùng để đăng ký Resend (dùng để test).
 
 [vars]
 GOOGLE_CLIENT_ID = "752017566752-vbdlh19akir9mt8bmk1derla59fp3h22.apps.googleusercontent.com"
 OWNER_USER_ID = "117195311521159900631"
 
-# Dùng để build đúng URL callback OAuth (worker/src/mcpOAuth.js) và redirect người dùng quay lại
-# app sau khi đăng nhập OAuth xong. KHÔNG có dấu "/" ở cuối.
 API_BASE_URL = "https://my-ai-worker.vudanhquy1002.workers.dev"
 APP_URL = "https://toilalode.github.io"
 
-# ---- Durable Object: ghim vùng cố định khi gọi Gemini API ----
-# Không cần lệnh tạo trước, không cần thẻ (Durable Objects miễn phí từ 2025).
-# Giúp né lỗi "User location is not supported for the API use" do Worker
-# thường bị định tuyến ngẫu nhiên qua vùng Google chưa hỗ trợ Gemini.
-[[durable_objects.bindings]]
 name = "GEMINI_PROXY"
 class_name = "GeminiProxyDO"
 
-# ---- Durable Object: relay WebSocket 2 chiều cho Voice LIVE (Gemini Live API) ----
-# Mỗi phiên trò chuyện bằng giọng nói real-time tạo 1 instance riêng (worker/src/index.js dùng
-# newUniqueId()) — DO này giữ sống 2 WebSocket (browser <-> DO <-> Gemini) suốt cuộc trò chuyện.
-# Không cần lệnh tạo trước, không cần thẻ — như GEMINI_PROXY ở trên.
 [[durable_objects.bindings]]
 name = "GEMINI_LIVE"
 class_name = "GeminiLiveDO"
@@ -117,8 +65,6 @@ class_name = "GeminiLiveDO"
 tag = "v1"
 new_sqlite_classes = ["GeminiProxyDO"]
 
-# Migration RIÊNG cho class MỚI (GeminiLiveDO) — không được gộp vào tag "v1" ở trên vì tag đó đã
-# deploy rồi (Cloudflare không cho sửa lại 1 migration tag đã áp dụng, chỉ cho thêm tag mới nối tiếp).
 [[migrations]]
 tag = "v2"
-new_classes = ["GeminiLiveDO"]
+new_sqlite_classes = ["GeminiLiveDO"]
