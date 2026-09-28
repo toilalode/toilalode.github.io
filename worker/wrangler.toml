@@ -3,6 +3,9 @@ main = "src/index.js"
 compatibility_date = "2026-01-01"
 compatibility_flags = ["nodejs_compat"]
 
+[placement]
+region = "gcp:us-central1"
+
 [observability]
 enabled = true
 
