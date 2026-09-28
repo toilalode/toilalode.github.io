@@ -20,7 +20,7 @@ const GEMINI_LOCATION_HINTS = ['wnam', 'enam', 'oc', 'sam', 'apac', 'weur', 'eeu
 
 // Tên DO có hậu tố phiên bản: DO đã lỡ tạo ở vùng bị chặn sẽ "dính" vùng đó mãi mãi (locationHint chỉ
 // có tác dụng lúc tạo lần đầu). Đổi hậu tố => tạo DO mới ở đúng vùng. Nếu vẫn lỗi, đổi v3, v4...
-const DO_NAME_VERSION = 'v2';
+const DO_NAME_VERSION = 'v3';
 
 // Nhớ vùng gọi thành công gần nhất (trong isolate hiện tại) để lần sau thử vùng đó trước, khỏi lặp cả danh sách.
 let lastGoodHint = null;
