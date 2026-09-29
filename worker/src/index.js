@@ -545,8 +545,8 @@ export default {
         const wsToken = url.searchParams.get('token');
         let liveUserId = null;
         if (wsToken) { try { liveUserId = await verifySessionToken(env, wsToken); } catch { liveUserId = null; } }
-        if (!liveUserId) return json({ error: 'Chưa đăng nhập (thiếu ?token=... hợp lệ)' }, cors, 401);
-        if (!env.GEMINI_LIVE) return json({ error: 'Server chưa cấu hình Durable Object GEMINI_LIVE.' }, cors, 500);
+        if (!liveUserId && wsToken) { try { liveUserId = await getUserIdFromApiKey(env, wsToken); } catch { liveUserId = null; } }
+        if (!liveUserId) return json({ error: 'Chưa đăng nhập (thiếu ?token=... hợp lệ)' }, cors, 401); if (!env.GEMINI_LIVE) return json({ error: 'Server chưa cấu hình Durable Object GEMINI_LIVE.' }, cors, 500);
 
         // ⚠️ Cloudflare Worker/Durable Object "thường" (không ghim vùng) có thể bị định tuyến qua
         // 1 datacenter mà Google CHẶN Live API theo địa lý — Google nhìn IP của chính datacenter
