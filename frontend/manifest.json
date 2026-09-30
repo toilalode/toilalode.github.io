@@ -1,6 +1,6 @@
 {
   "name": "Velocitix AI",
-  "short_name": "Velocitix",
+  "short_name": "Velocitix AI",
   "description": "Trợ lý AI trò chuyện, tạo ảnh, tạo video, Deep Research và nhiều hơn nữa.",
   "start_url": "./index.html",
   "scope": "./",
