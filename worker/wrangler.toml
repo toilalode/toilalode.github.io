@@ -58,6 +58,7 @@ OWNER_USER_ID = "117195311521159900631"
 API_BASE_URL = "https://my-ai-worker.vudanhquy1002.workers.dev"
 APP_URL = "https://toilalode.github.io"
 
+[[durable_objects.bindings]]
 name = "GEMINI_PROXY"
 class_name = "GeminiProxyDO"
 
