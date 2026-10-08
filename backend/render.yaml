@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: velocitix-backend
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    envVars:
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: OWNER_USER_ID
+        sync: false
+      # Thêm các biến môi trường khác (API key, OAuth client id/secret...) ở Render Dashboard ->
+      # Environment, KHÔNG để lộ trong file này (file này nằm trong repo công khai được).
