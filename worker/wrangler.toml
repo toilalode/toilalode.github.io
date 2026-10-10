@@ -20,7 +20,51 @@ enabled = true
 #   Vectorize: 30 triệu "queried dimensions"/tháng, 5 triệu "stored dimensions"
 # App cá nhân dùng bình thường sẽ không chạm các giới hạn này.
 # =====================================================================
- 
+
+[previews.vars]
+API_BASE_URL = "https://my-ai-worker.vudanhquy1002.workers.dev"
+APP_URL = "https://toilalode.github.io"
+GOOGLE_CLIENT_ID = "752017566752-vbdlh19akir9mt8bmk1derla59fp3h22.apps.googleusercontent.com"
+OWNER_USER_ID = "117195311521159900631"
+
+[previews.ai]
+binding = "AI"
+
+[[previews.unsafe.bindings]]
+name = "GEMINI_LIVE"
+type = "durable_object_namespace"
+class_name = "GeminiLiveDO"
+namespace_id = "926454f2c995472e96b7a0e711d8cd2b"
+
+[[previews.unsafe.bindings]]
+name = "GEMINI_PROXY"
+type = "durable_object_namespace"
+class_name = "GeminiProxyDO"
+namespace_id = "0512e69522e04ea49cb579144003e4af"
+
+[[previews.analytics_engine_datasets]]
+binding = "MY_AI_ANALYTICS"
+dataset = "my_ai_metrics"
+
+[[previews.d1_databases]]
+binding = "MY_AI_DB"
+database_id = "70fd971e-3152-43f1-bad4-4353e5762da5"
+
+[[previews.kv_namespaces]]
+binding = "MY_AI_KV"
+id = "57e00036a30b45a2821cb29a18e80f76"
+
+[[previews.vectorize]]
+binding = "MY_AI_VECTORIZE"
+index_name = "my-ai-chat-index"
+
+[previews.browser]
+binding = "MYBROWSER"
+
+[[previews.queues.producers]]
+binding = "VIDEO_QUEUE"
+queue = "my-ai-video-queue"
+
 [browser]
 binding = "MYBROWSER"
 
