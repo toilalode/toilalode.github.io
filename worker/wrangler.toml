@@ -47,6 +47,9 @@ dead_letter_queue = "my-ai-video-queue-dlq"
 binding = "MY_AI_VECTORIZE"
 index_name = "my-ai-chat-index"
 
+[ai]
+binding = "AI"
+
 [[analytics_engine_datasets]]
 binding = "MY_AI_ANALYTICS"
 dataset = "my_ai_metrics"
