@@ -1,0 +1,65 @@
+/* ===================== POPUP MODEL + MỨC SUY LUẬN (kiểu ChatGPT) =====================
+   Bấm vào tên model ở ô nhập -> mở popup này. Dùng chung khung .sheet có sẵn trong style.css. */
+
+/* "Thinking" cũ nằm trong popup chọn model -> ẩn đi (công tắc thật chuyển sang tia sét ở popup mới).
+   Phần tử #thinkingToggle vẫn còn trong DOM (ẩn) để app.js tiếp tục lưu trạng thái như cũ. */
+#modelSheet .sheet-divider,
+#modelSheet .sheet-toggle-row { display: none; }
+
+.effort-sheet { padding-bottom: calc(22px + env(safe-area-inset-bottom, 0px)); }
+
+.effort-header { display: flex; align-items: center; gap: 10px; padding: 2px 14px 14px; }
+
+.effort-bolt, .effort-close {
+  width: 40px; height: 40px; flex-shrink: 0; padding: 0;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 50%; border: 1px solid var(--border-strong);
+  background: var(--bg-card); color: var(--text-secondary); cursor: pointer;
+  transition: background .15s, border-color .15s, color .15s;
+}
+.effort-close:hover, .effort-bolt:hover { background: var(--bg-hover); }
+.effort-close svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; }
+
+/* Tia sét: không màu (viền rỗng) = TẮT thinking; tô màu = BẬT thinking */
+.effort-bolt svg, .pill-bolt {
+  fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linejoin: round; stroke-linecap: round;
+  transition: fill .15s;
+}
+.effort-bolt svg { width: 21px; height: 21px; }
+.effort-bolt.on { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
+.effort-bolt.on svg { fill: var(--accent); }
+
+.pill-bolt { width: 14px; height: 14px; vertical-align: -2px; margin-right: 4px; color: var(--accent); fill: var(--accent); }
+
+.effort-model {
+  flex: 1; min-width: 0; display: flex; align-items: center; justify-content: center; gap: 6px;
+  background: none; border: none; font: inherit; font-weight: 700; font-size: 17px;
+  color: var(--text-primary); cursor: pointer; padding: 8px 10px; border-radius: var(--radius-md);
+}
+.effort-model:hover { background: var(--bg-hover); }
+.effort-model span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.effort-model svg { width: 16px; height: 16px; flex-shrink: 0; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+
+.effort-body { padding: 6px 24px 4px; transition: opacity .15s; }
+.effort-body.off { opacity: .55; }
+.effort-title { font-size: 13px; font-weight: 600; color: var(--text-secondary); margin-bottom: 14px; }
+
+.effort-range {
+  -webkit-appearance: none; appearance: none; display: block; width: 100%; height: 6px; margin: 12px 0 10px;
+  border-radius: 6px; outline: none; cursor: pointer;
+  background: linear-gradient(to right, var(--accent) 0%, var(--accent) var(--pct, 50%), var(--border-strong) var(--pct, 50%), var(--border-strong) 100%);
+}
+.effort-range::-webkit-slider-thumb {
+  -webkit-appearance: none; appearance: none; width: 26px; height: 26px; border-radius: 50%;
+  background: var(--accent); border: 3px solid #fff; box-shadow: var(--shadow-md);
+}
+.effort-range::-moz-range-thumb {
+  width: 20px; height: 20px; border-radius: 50%; background: var(--accent); border: 3px solid #fff; box-shadow: var(--shadow-md);
+}
+
+.effort-stops { display: grid; grid-template-columns: 1fr 1fr 1fr; }
+.effort-stop { background: none; border: none; font: inherit; font-size: 13.5px; color: var(--text-faint); cursor: pointer; padding: 6px 0; }
+.effort-stop:nth-child(1) { text-align: left; }
+.effort-stop:nth-child(2) { text-align: center; }
+.effort-stop:nth-child(3) { text-align: right; }
+.effort-stop.active { color: var(--accent); font-weight: 700; }
