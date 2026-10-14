@@ -16,8 +16,9 @@
 // mở kết nối RA NGOÀI (constructor đó chỉ có ở trình duyệt) — phải dùng fetch() với header
 // Upgrade: websocket rồi lấy response.webSocket, đây là cách riêng của Cloudflare.
 
-const GEMINI_LIVE_MODEL_DEFAULT = 'gemini-3.1-flash-live-preview'; // tên model Live trong tài liệu chính thức của Google. Muốn đổi: đặt biến môi trường GEMINI_LIVE_MODEL cho Worker (không cần sửa code).
-const GEMINI_LIVE_MODEL_LEGACY_COMMENT = '(gemini-3.8-live cũ không thấy trong tài liệu Google nên bị bỏ)'; // model Live API mặc định hiện tại (gemini-3.1-flash-live-preview đã bị đánh dấu "legacy", nên đổi sang bản này)
+// Model Live mặc định hiện hành của Google (ổn định từ 9/2026). gemini-3.1-flash-live-preview đã bị đánh dấu legacy.
+// Muốn đổi (vd gemini-3.8-live-extended-thinking): đặt biến môi trường GEMINI_LIVE_MODEL cho Worker, không cần sửa code.
+const GEMINI_LIVE_MODEL_DEFAULT = 'gemini-3.8-live';
 // ⚠️ QUAN TRỌNG: Cloudflare Workers/Durable Objects KHÔNG chấp nhận scheme "wss://" trong URL
 // truyền cho fetch() — dù đang làm WebSocket handshake. Chính header "Upgrade: websocket" mới là
 // thứ báo hiệu đây là yêu cầu nâng cấp WebSocket, scheme URL vẫn phải là "https://" bình thường.
@@ -146,7 +147,7 @@ export class GeminiLiveDO {
 
     if (msg.type === 'audio' && msg.data) {
       this.geminiWs.send(JSON.stringify({
-        realtimeInput: { mediaChunks: [{ mimeType: 'audio/pcm;rate=16000', data: msg.data }] },
+        realtimeInput: { audio: { mimeType: 'audio/pcm;rate=16000', data: msg.data } }, // `mediaChunks` là định dạng cũ đã bị loại bỏ
       }));
     } else if (msg.type === 'text' && msg.text) {
       this.geminiWs.send(JSON.stringify({
