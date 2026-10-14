@@ -83,7 +83,7 @@ async function askGemini(env, apiKey, model, prompt, { webSearch = false } = {})
 
 // ---------- /api/chat/stream ----------
 function handleChatStream(body, env, cors, ctx, userId) {
-  const { messages = [], model = 'auto', thinking = false, webSearch = false, systemInstruction, attachments = [] } = body;
+  const { messages = [], model = 'auto', thinking = false, thinkingEffort, webSearch = false, systemInstruction, attachments = [] } = body;
 
   const { readable, writable } = new TransformStream();
   const writer = writable.getWriter();
@@ -131,7 +131,11 @@ function handleChatStream(body, env, cors, ctx, userId) {
       // trong khi chọn tay 1 model khác (vốn hay được test kỹ hơn) thì không sao.
       // Chỉ gửi thinkingConfig khi người dùng THẬT SỰ bật công tắc "Thinking".
       const reqBody = { contents };
-      if (thinking) reqBody.generationConfig = { thinkingConfig: { thinkingBudget: -1 } };
+      // Mức nỗ lực (Thấp / Trung bình / Cao) từ popup model -> ngân sách suy luận. "Cao" = -1: để model tự quyết
+      // (tối đa theo model). Dùng thinkingBudget vì đã chạy ổn với mọi model trong app; 1024 và 8192 nằm trong
+      // giới hạn của cả dòng Flash-Lite, Flash lẫn Pro.
+      const THINKING_BUDGETS = { low: 1024, medium: 8192, high: -1 };
+      if (thinking) reqBody.generationConfig = { thinkingConfig: { thinkingBudget: THINKING_BUDGETS[thinkingEffort] ?? -1 } };
       if (systemInstruction) reqBody.systemInstruction = { parts: [{ text: systemInstruction }] };
       if (webSearch) reqBody.tools = [{ google_search: {} }];
 
