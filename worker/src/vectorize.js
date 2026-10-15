@@ -148,6 +148,20 @@ async function searchMessagesDebug(env, query, { topK = 8, conversationId, userI
     matches = all.filter(m => m.metadata?.userId === userId
       && (!conversationId || m.metadata?.conversationId === conversationId) && sameSource(m));
   }
+  // Vector KHÔNG tự mất khi người dùng xoá hội thoại (xoá mềm trong D1 chỉ đánh dấu deleted_at, xoá hẳn thì
+  // D1 mất nhưng Vectorize vẫn giữ) -> trước đây tin nhắn đã xoá vẫn hiện ra khi tìm. Giờ đối chiếu lại với D1:
+  // chỉ giữ tin nhắn còn tồn tại, thuộc hội thoại chưa bị xoá và đúng chủ.
+  if (matches.length && env.MY_AI_DB) {
+    const ids = matches.map(m => m.id);
+    const placeholders = ids.map(() => '?').join(',');
+    const { results: alive } = await env.MY_AI_DB.prepare(
+      `SELECT m.id FROM messages m JOIN conversations c ON c.id = m.conversation_id
+        WHERE c.user_id = ? AND c.deleted_at IS NULL AND m.id IN (${placeholders})`
+    ).bind(userId, ...ids).all();
+    const aliveIds = new Set((alive || []).map(r => r.id));
+    debug.droppedDeleted = matches.length - matches.filter(m => aliveIds.has(m.id)).length;
+    matches = matches.filter(m => aliveIds.has(m.id));
+  }
   matches = matches.slice(0, topK);
 
   const results = matches.map(m => ({
