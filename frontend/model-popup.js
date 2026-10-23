@@ -4,10 +4,11 @@
 //
 // Cách hoạt động:
 //  - Bấm tên model ở ô nhập -> mở popup này (thay cho popup chọn model cũ).
-//  - Góc trên trái: tia sét. Rỗng = TẮT thinking, tô màu = BẬT thinking.
+//  - Góc trên trái: tia sét "Deep Think". Rỗng = TẮT Deep Think, tô màu = BẬT Deep Think.
 //  - Giữa: tên model, bấm vào để đổi model (mở lại popup chọn model cũ, đã bỏ phần Thinking).
 //  - Góc trên phải: nút X đóng popup.
-//  - Dưới cùng: thanh gạt Thấp / Trung bình / Cao. Gạt thanh sẽ tự bật thinking.
+//  - Dưới cùng: thanh gạt Thấp / Trung bình / Cao. Thanh luôn sáng; gạt thanh CHỈ đổi mức nỗ lực,
+//    KHÔNG tự bật/tắt Deep Think (chỉ nút tia sét mới bật/tắt).
 //  - Mức đã chọn gửi lên server qua trường `thinkingEffort` của /api/chat/stream.
 (() => {
   'use strict';
@@ -18,6 +19,7 @@
     { key: 'high', label: 'Cao' },
   ];
   const EFFORT_KEY = 'myai_thinking_effort';
+  const DEEP_THINK_LABEL = 'Deep Think';
 
   let effort = localStorage.getItem(EFFORT_KEY);
   if (!LEVELS.some(l => l.key === effort)) effort = 'medium';
@@ -38,7 +40,7 @@
   sheet.innerHTML = `
     <div class="sheet-handle"></div>
     <div class="effort-header">
-      <button type="button" class="effort-bolt" id="effortBolt" aria-pressed="false" aria-label="Bật hoặc tắt Thinking">${boltSvg('')}</button>
+      <button type="button" class="effort-bolt" id="effortBolt" aria-pressed="false" aria-label="Bật hoặc tắt ${DEEP_THINK_LABEL}" title="${DEEP_THINK_LABEL}">${boltSvg('')}</button>
       <button type="button" class="effort-model" id="effortModelBtn" aria-label="Đổi model">
         <span id="effortModelName"></span>
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
@@ -59,7 +61,6 @@
   const boltBtn = sheet.querySelector('#effortBolt');
   const modelBtn = sheet.querySelector('#effortModelBtn');
   const modelName = sheet.querySelector('#effortModelName');
-  const body = sheet.querySelector('#effortBody');
   const range = sheet.querySelector('#effortRange');
 
   // ---------- trạng thái ----------
@@ -73,14 +74,14 @@
     const idx = Math.max(0, LEVELS.findIndex(l => l.key === effort));
     boltBtn.classList.toggle('on', on);
     boltBtn.setAttribute('aria-pressed', String(on));
-    body.classList.toggle('off', !on);
+    // Thanh nỗ lực luôn sáng, không làm mờ khi Deep Think đang tắt.
     range.value = String(idx);
     range.style.setProperty('--pct', (idx * 50) + '%');
     sheet.querySelectorAll('.effort-stop').forEach((b, i) => b.classList.toggle('active', i === idx));
     modelName.textContent = currentModel().label.replace(/^\u26A1\uFE0F?\s*/u, '') || currentModel().label; // bỏ emoji tia sét của nhãn "Auto"
   }
 
-  // Bật/tắt thinking thông qua công tắc cũ (đang ẩn) để app.js tự lưu state + localStorage như trước.
+  // Bật/tắt Deep Think thông qua công tắc cũ (đang ẩn) để app.js tự lưu state + localStorage như trước.
   function setThinking(on) {
     const t = els.thinkingToggle;
     if (t.checked !== on) {
@@ -90,10 +91,10 @@
     refresh();
   }
 
+  // Gạt thanh chỉ đổi mức nỗ lực, KHÔNG đụng tới trạng thái bật/tắt Deep Think.
   function setEffort(i) {
     effort = LEVELS[Math.min(2, Math.max(0, i))].key;
     localStorage.setItem(EFFORT_KEY, effort);
-    if (!state.thinking) setThinking(true); // gạt thanh = muốn dùng thinking
     refresh();
   }
 
@@ -124,7 +125,7 @@
   }, true);
 
   // ---------- nối với app.js (không sửa app.js) ----------
-  // 1) Nhãn trên nút model: thay emoji "🧠" cũ bằng icon tia sét tô màu khi đang bật thinking.
+  // 1) Nhãn trên nút model: icon tia sét tô màu khi đang bật Deep Think.
   window.updateModelPillLabel = function () {
     const m = currentModel();
     const lbl = els.modelPillLabel;
@@ -134,7 +135,7 @@
     refresh();
   };
 
-  // 2) Gửi kèm mức nỗ lực khi chat có bật thinking.
+  // 2) Gửi kèm mức nỗ lực khi chat có bật Deep Think.
   const origStreamPost = window.streamPost;
   window.streamPost = function (url, payload, handlers, abortSignal) {
     if (payload && payload.thinking && typeof url === 'string' && url.includes('/api/chat/stream')) {

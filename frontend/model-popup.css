@@ -1,7 +1,7 @@
 /* ===================== POPUP MODEL + MỨC SUY LUẬN (kiểu ChatGPT) =====================
    Bấm vào tên model ở ô nhập -> mở popup này. Dùng chung khung .sheet có sẵn trong style.css. */
 
-/* "Thinking" cũ nằm trong popup chọn model -> ẩn đi (công tắc thật chuyển sang tia sét ở popup mới).
+/* "Thinking" cũ nằm trong popup chọn model -> ẩn đi (công tắc thật chuyển sang tia sét "Deep Think" ở popup mới).
    Phần tử #thinkingToggle vẫn còn trong DOM (ẩn) để app.js tiếp tục lưu trạng thái như cũ. */
 #modelSheet .sheet-divider,
 #modelSheet .sheet-toggle-row { display: none; }
@@ -20,7 +20,7 @@
 .effort-close:hover, .effort-bolt:hover { background: var(--bg-hover); }
 .effort-close svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; }
 
-/* Tia sét: không màu (viền rỗng) = TẮT thinking; tô màu = BẬT thinking */
+/* Tia sét Deep Think: không màu (viền rỗng) = TẮT; tô màu = BẬT */
 .effort-bolt svg, .pill-bolt {
   fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linejoin: round; stroke-linecap: round;
   transition: fill .15s;
@@ -40,8 +40,8 @@
 .effort-model span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .effort-model svg { width: 16px; height: 16px; flex-shrink: 0; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 
-.effort-body { padding: 6px 24px 4px; transition: opacity .15s; }
-.effort-body.off { opacity: .55; }
+/* Thanh nỗ lực luôn sáng (không còn làm mờ khi Deep Think tắt) */
+.effort-body { padding: 6px 24px 4px; }
 .effort-title { font-size: 13px; font-weight: 600; color: var(--text-secondary); margin-bottom: 14px; }
 
 .effort-range {
