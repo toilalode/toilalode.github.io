@@ -6,7 +6,7 @@
 // KHÔNG CẦN sửa file này mỗi lần cập nhật frontend nữa: file của app luôn được hỏi lại server
 // (cache: 'no-cache'), nên sửa app.js / index.html / style.css / model-popup.* là thấy ngay.
 // Chỉ khi muốn XOÁ SẠCH cache cũ (hiếm) thì mới tăng số phiên bản CACHE_NAME.
-const CACHE_NAME = 'velocitix-shell-v9';
+const CACHE_NAME = 'velocitix-shell-v10';
 const SHELL_FILES = ['./', './index.html', './style.css', './model-popup.css', './app.js', './model-popup.js', './manifest.json'];
 
 self.addEventListener('install', (event) => {
