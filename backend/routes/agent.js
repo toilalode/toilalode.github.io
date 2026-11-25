@@ -11,21 +11,31 @@
 //     y hệt cơ chế ở mục "Điều khiển trình duyệt thật" riêng.
 //
 // API:
-//   POST /api/agent/run           body: { task }              -> SSE, chạy tới khi xong / cần xin phép
-//   POST /api/agent/:id/resume    body: { approve: boolean }  -> SSE, tiếp tục sau khi user quyết định
+//   POST /api/agent/run           body: { task, model? }      -> SSE, chạy tới khi xong / cần xin phép
+//   POST /api/agent/:id/resume    body: { approve, model? }   -> SSE, tiếp tục sau khi user quyết định
 //   DELETE /api/agent/:id                                      -> dọn dẹp task (đóng browser nếu có)
+//
+// `model`: model người dùng chọn ở nút chọn model (FE đã tự hỏi Cloudflare AI nếu chọn Auto, nên ở đây
+// luôn là tên model cụ thể). Không có / không hợp lệ -> dùng model mặc định (3.5 Flash).
 
 const express = require('express');
+const { AsyncLocalStorage } = require('node:async_hooks');
 const router = express.Router();
 const browserAgent = require('../utils/browserAgent');
 const { saveBase64ToDisk } = require('../utils/storage');
-const { MODELS } = require('../config/models');
+const { MODELS, normalizeChatModel } = require('../config/models');
 
 const API_KEY = process.env.GEMINI_API_KEY;
 const BASE = 'https://generativelanguage.googleapis.com/v1beta/models';
 const MAX_STEPS = 15;
 
-// taskId -> { task, steps: [], browserSessionId: null, awaitingApproval: null, done: false }
+// Model theo từng task: runLoop chạy trong modelScope.run(...) nên mọi lời gọi Gemini bên dưới
+// đọc được model của đúng task đó, không cần truyền tham số qua từng hàm.
+const modelScope = new AsyncLocalStorage();
+const smartModel = () => modelScope.getStore()?.model || MODELS.chatSmart;
+const runInScope = (taskState, fn) => modelScope.run({ model: taskState.model || null }, fn);
+
+// taskId -> { task, model, steps: [], browserSessionId: null, awaitingApproval: null, done: false }
 const tasks = new Map();
 
 function genId() { return 'task_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 8); }
@@ -35,7 +45,7 @@ async function askJson(prompt, extraParts = []) {
     contents: [{ role: 'user', parts: [{ text: prompt }, ...extraParts] }],
     generationConfig: { responseMimeType: 'application/json' },
   };
-  const r = await fetch(`${BASE}/${MODELS.chatSmart}:generateContent?key=${API_KEY}`, {
+  const r = await fetch(`${BASE}/${smartModel()}:generateContent?key=${API_KEY}`, {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
   });
   const data = await r.json();
@@ -46,7 +56,7 @@ async function askJson(prompt, extraParts = []) {
 
 async function askWithSearch(query) {
   const body = { contents: [{ role: 'user', parts: [{ text: query }] }], tools: [{ google_search: {} }] };
-  const r = await fetch(`${BASE}/${MODELS.chatSmart}:generateContent?key=${API_KEY}`, {
+  const r = await fetch(`${BASE}/${smartModel()}:generateContent?key=${API_KEY}`, {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
   });
   const data = await r.json();
@@ -219,17 +229,23 @@ async function runLoop(taskState, send, res) {
   }
 }
 
+// Model người dùng chọn -> tên model cụ thể, hoặc null (dùng mặc định) nếu không có / là 'auto' / không hợp lệ.
+function pickTaskModel(raw) {
+  const m = normalizeChatModel(raw);
+  return m === 'auto' ? null : m;
+}
+
 router.post('/run', async (req, res) => {
   const send = sseSetup(res);
   try {
     if (!API_KEY) { send('error', 'Thiếu GEMINI_API_KEY'); return res.end(); }
-    const { task } = req.body || {};
+    const { task, model } = req.body || {};
     if (!task) { send('error', 'Thiếu task'); return res.end(); }
     const id = genId();
-    const taskState = { id, task, steps: [], browserSessionId: null, awaitingApproval: null, done: false };
+    const taskState = { id, task, model: pickTaskModel(model), steps: [], browserSessionId: null, awaitingApproval: null, done: false };
     tasks.set(id, taskState);
     send('started', { taskId: id });
-    await runLoop(taskState, send, res);
+    await runInScope(taskState, () => runLoop(taskState, send, res));
   } catch (err) {
     send('error', err.message);
     res.end();
@@ -242,7 +258,9 @@ router.post('/:id/resume', async (req, res) => {
     const taskState = tasks.get(req.params.id);
     if (!taskState) { send('error', 'Không tìm thấy task (có thể đã hết hạn).'); return res.end(); }
     if (!taskState.awaitingApproval) { send('error', 'Task này không có hành động nào đang chờ xác nhận.'); return res.end(); }
-    const { approve } = req.body || {};
+    const { approve, model } = req.body || {};
+    const picked = pickTaskModel(model);
+    if (picked) taskState.model = picked; // người dùng có thể đổi model giữa chừng
     const session = browserAgent.getSession(taskState.browserSessionId);
 
     if (approve) {
@@ -255,7 +273,7 @@ router.post('/:id/resume', async (req, res) => {
       taskState.steps.push({ tool: 'browser_control', resultSummary: 'Người dùng đã TỪ CHỐI hành động này. Hãy thử cách khác hoặc kết thúc.' });
     }
     taskState.awaitingApproval = null;
-    await runLoop(taskState, send, res);
+    await runInScope(taskState, () => runLoop(taskState, send, res));
   } catch (err) {
     send('error', err.message);
     res.end();
