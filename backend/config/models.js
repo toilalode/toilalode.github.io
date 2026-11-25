@@ -1,46 +1,55 @@
-// Danh sách model Gemini — cập nhật 11/09/2026, tra cứu trực tiếp từ
-// https://ai.google.dev/gemini-api/docs/models và
-// https://ai.google.dev/gemini-api/docs/pricing (nguồn chính thức Google).
-// Google đổi tên/khai tử model khá thường xuyên, nếu gặp lỗi 404 model not found
-// hãy vào 2 link trên kiểm tra tên mới nhất rồi sửa lại các giá trị bên dưới
-// (chỉ cần sửa ở 1 chỗ này).
+// Danh sách model Gemini cho backend Render (dùng khi chạy localhost) — đồng bộ với worker/src/models.js.
+// Nguồn chính thức: https://ai.google.dev/gemini-api/docs/models và /pricing
 //
-// ⚠️ QUAN TRỌNG — model nào FREE, model nào KHÔNG:
-//  - Toàn bộ dòng Flash / Flash-Lite (chat) + TTS: FREE, không cần thẻ/billing.
-//  - gemini-3.1-pro-preview (Pro): Google xác nhận KHÔNG có free tier từ 04/2026,
-//    trả phí ngay từ request đầu tiên -> đã đổi "chatSmart" mặc định sang
-//    gemini-3.8-flash (free) để tránh lỗi/billing ngoài ý muốn.
-//    Muốn dùng Pro thật, tự đổi lại giá trị "chatSmart" bên dưới và bật billing
-//    cho project trong Google Cloud/AI Studio trước.
-//  - Toàn bộ model ẢNH (Nano Banana / Nano Banana Pro) và VIDEO (Veo, Omni Flash):
-//    KHÔNG có free tier -> phải bật billing (thẻ) trên Google AI Studio /
-//    Google Cloud thì mới gọi được, nếu không sẽ báo lỗi 400/403.
+//  - gemini-3.5-flash   : mọi người dùng được. Thinking = thinkingBudget theo mức Thấp/TB/Cao.
+//  - gemini-4-hydrogen  : thinkingLevel low/medium/high/xhigh (xhigh tốn nhiều token).
+//  - gemma-4-31b-it / gemma-4-26b-a4b-it : chỉ bật/tắt thinking (thinkingLevel 'high' / 'minimal').
+//  Đã bỏ: gemini-3.1-flash-lite, gemini-3-flash-preview, gemini-3.1-pro-preview (các khoá chatLite/
+//  chatFast/chatSmart/chatCoding được giữ lại cho file khác dùng nhưng đều trỏ về gemini-3.5-flash).
+//
+// ⚠️ Model ẢNH / VIDEO KHÔNG có free tier -> phải bật billing trên Google AI Studio / Google Cloud.
 const MODELS = {
-  chatLite:    'gemini-3.1-flash-lite',        // free — nhanh nhất, câu hỏi ngắn/đơn giản
-  chatFast:    'gemini-3.8-flash',             // free — mặc định cho chat thường (thay cho gemini-3-flash-preview cũ)
-  chatCoding:  'gemini-3.5-flash',             // free — mạnh cho code / agentic
-  chatSmart:   'gemini-3.8-flash',             // free — ĐỔI từ gemini-3.1-pro-preview (không free) sang Flash mới nhất
+  chatLite:    'gemini-3.5-flash',
+  chatFast:    'gemini-3.5-flash',
+  chatCoding:  'gemini-3.5-flash',
+  chatSmart:   'gemini-3.5-flash',
+  chatHydrogen:   'gemini-4-hydrogen',
+  chatGemmaLarge: 'gemma-4-31b-it',
+  chatGemmaMoe:   'gemma-4-26b-a4b-it',
   imageGen:    'gemini-3.1-flash-image',       // ⚠️ KHÔNG free — Nano Banana 2, cần bật billing
   imageGenPro: 'gemini-3-pro-image',           // ⚠️ KHÔNG free — Nano Banana Pro, cần bật billing
   videoGen:    'gemini-omni-flash-preview',    // ⚠️ KHÔNG free — tạo video ngắn, cần bật billing
-  tts:         'gemini-3.1-flash-tts-preview', // free — sửa từ tên sai "gemini-2.5-flash-tts-preview"
+  tts:         'gemini-3.1-flash-tts-preview', // free
 };
 
-// Bộ chọn model "Auto": đọc nội dung tin nhắn mới nhất của user để đoán
-// nên dùng model nào cho hợp lý (nhanh mà vẫn đủ "thông minh").
-function pickAutoModel(promptText = '', { webSearch = false, forceSmart = false } = {}) {
-  if (forceSmart) return MODELS.chatSmart;
-  const t = (promptText || '').toLowerCase();
+const CHAT_MODEL_ALLOWLIST = new Set([
+  'auto',
+  MODELS.chatCoding,
+  MODELS.chatHydrogen,
+  MODELS.chatGemmaLarge,
+  MODELS.chatGemmaMoe,
+]);
+// Tên model không hợp lệ / đã bỏ -> 'auto'.
+function normalizeChatModel(model) {
+  return CHAT_MODEL_ALLOWLIST.has(model) ? model : 'auto';
+}
 
-  const codingHints = ['code', 'lập trình', 'sửa lỗi', 'debug', 'hàm ', 'function',
-    'html', 'css', 'javascript', 'python', 'script', 'api', 'json', 'sql'];
-  const deepHints = ['phân tích', 'so sánh', 'giải thích chi tiết', 'lý luận',
-    'chứng minh', 'nghiên cứu', 'chiến lược', 'đánh giá'];
+const isGemmaModel = (m) => typeof m === 'string' && m.startsWith('gemma-');
+const isHydrogenModel = (m) => m === MODELS.chatHydrogen;
 
-  if (codingHints.some(k => t.includes(k))) return MODELS.chatCoding;
-  if (webSearch || deepHints.some(k => t.includes(k)) || promptText.length > 600) return MODELS.chatSmart;
-  if (promptText.length > 0 && promptText.length < 40) return MODELS.chatLite;
+const FLASH_BUDGETS = { low: 1024, medium: 8192, high: -1 };
+const HYDROGEN_LEVELS = ['low', 'medium', 'high', 'xhigh'];
+// Trả về thinkingConfig phù hợp từng dòng model, hoặc null nếu không cần gửi.
+function buildThinkingConfig(model, thinking, effort) {
+  if (isGemmaModel(model)) return { thinkingLevel: thinking ? 'high' : 'minimal' };
+  if (isHydrogenModel(model)) return { thinkingLevel: HYDROGEN_LEVELS.includes(effort) ? effort : 'high' };
+  if (!thinking) return null;
+  return { thinkingBudget: FLASH_BUDGETS[effort] ?? -1 };
+}
+
+// Bộ chọn model "Auto": chỉ còn 3.5 Flash là model chính.
+function pickAutoModel() {
   return MODELS.chatFast;
 }
 
-module.exports = { MODELS, pickAutoModel };
+module.exports = { MODELS, pickAutoModel, normalizeChatModel, buildThinkingConfig };

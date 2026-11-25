@@ -1,12 +1,12 @@
 const express = require('express');
 const router = express.Router();
-const { MODELS, pickAutoModel } = require('../config/models');
+const { pickAutoModel, normalizeChatModel, buildThinkingConfig } = require('../config/models');
 
 const API_KEY = process.env.GEMINI_API_KEY;
 const BASE = 'https://generativelanguage.googleapis.com/v1beta/models';
 
 // POST /api/chat/stream
-// body: { messages, model, thinking, webSearch, systemInstruction, attachments }
+// body: { messages, model, thinking, thinkingEffort, webSearch, systemInstruction, attachments }
 router.post('/stream', async (req, res) => {
   res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
   res.setHeader('Cache-Control', 'no-cache');
@@ -21,6 +21,7 @@ router.post('/stream', async (req, res) => {
       messages = [],
       model = 'auto',
       thinking = false,
+      thinkingEffort,
       webSearch = false,
       systemInstruction,
       attachments = [],
@@ -28,7 +29,8 @@ router.post('/stream', async (req, res) => {
 
     const lastUserMsg = [...messages].reverse().find(m => m.role === 'user');
     const lastUserText = lastUserMsg?.parts?.map(p => p.text || '').join(' ') || '';
-    const chosenModel = model === 'auto' ? pickAutoModel(lastUserText, { webSearch }) : model;
+    const normalizedModel = normalizeChatModel(model);
+    const chosenModel = normalizedModel === 'auto' ? pickAutoModel(lastUserText, { webSearch }) : normalizedModel;
     send('model', chosenModel);
 
     const contents = messages.map(m => ({
@@ -45,10 +47,11 @@ router.post('/stream', async (req, res) => {
       }
     }
 
-    // ⚠️ FIX lỗi "Auto không hoạt động": xem giải thích chi tiết ở worker/src/index.js —
-    // chỉ gửi thinkingConfig khi người dùng thật sự bật "Thinking", không gửi mặc định nữa.
+    // thinkingConfig phụ thuộc từng dòng model (3.5 Flash: thinkingBudget, Hydrogen: thinkingLevel
+    // gồm cả xhigh, Gemma: bật/tắt) — xem buildThinkingConfig trong config/models.js.
     const body = { contents };
-    if (thinking) body.generationConfig = { thinkingConfig: { thinkingBudget: -1 } };
+    const thinkingConfig = buildThinkingConfig(chosenModel, thinking, thinkingEffort);
+    if (thinkingConfig) body.generationConfig = { thinkingConfig };
     if (systemInstruction) body.systemInstruction = { parts: [{ text: systemInstruction }] };
     if (webSearch) body.tools = [{ google_search: {} }];
 
