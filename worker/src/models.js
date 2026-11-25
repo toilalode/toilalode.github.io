@@ -24,14 +24,10 @@ export const MODELS = {
   chatHydrogen:   'gemini-4-hydrogen',
   chatGemmaLarge: 'gemma-4-31b-it',
   chatGemmaMoe:   'gemma-4-26b-a4b-it',
-  imageGen:    'gemini-3.1-flash-image',      // ⚠️ KHÔNG free — cần bật billing (Nano Banana 2)
-  imageGenPro: 'gemini-3-pro-image',          // ⚠️ KHÔNG free — cần bật billing (Nano Banana Pro)
-  videoGen:    'veo-3.1-generate-001',      // ⚠️ KHÔNG free — cần bật billing. Model VIDEO thật (Veo), gọi qua
-                                              // endpoint riêng :predictLongRunning (KHÔNG dùng chung endpoint
-                                              // generateContent với chat/ảnh). Tên cũ "gemini-omni-flash-preview"
-                                              // không tồn tại trong API của Google -> mọi request tạo video
-                                              // trước đây chắc chắn lỗi 404 model not found.
-  videoGenFast: 'veo-3.1-fast-generate-001', // rẻ/nhanh hơn, chất lượng thấp hơn 1 chút — dùng khi cần tốc độ
+  imageGen:    'gemini-3.1-flash-image',      // (tính năng tạo ảnh đã gỡ khỏi app, route trả 410)
+  imageGenPro: 'gemini-3-pro-image',
+  videoGen:    'veo-3.1-generate-001',        // (tính năng tạo video đã gỡ khỏi app, route trả 410)
+  videoGenFast: 'veo-3.1-fast-generate-001',
   tts:         'gemini-3.1-flash-tts-preview', // free — sửa từ tên sai "gemini-2.5-flash-tts-preview"
 };
 
@@ -66,8 +62,16 @@ export function buildThinkingConfig(model, thinking, effort) {
   return { thinkingBudget: FLASH_BUDGETS[effort] ?? -1 }; // 'high' (hoặc giá trị lạ) = -1: model tự quyết
 }
 
-// Chế độ Auto: giờ chỉ còn 3.5 Flash là model chính (các model Lite/3 Flash/Pro đã bỏ).
-export function pickAutoModel() {
+// Chế độ Auto: model do Cloudflare AI chọn (xem autoRouter.js + entry.js). entry.js ghi kết quả vào
+// bảng nhớ này theo nội dung câu hỏi; không có thì dùng 3.5 Flash. Giữ đồng bộ vì index.js gọi không await.
+const autoRouteHints = new Map();
+export function rememberAutoRoute(text, model) {
+  if (autoRouteHints.size > 200) autoRouteHints.clear();
+  autoRouteHints.set(text, model);
+}
+export function pickAutoModel(lastUserText) {
+  const hinted = autoRouteHints.get(lastUserText);
+  if (hinted) { autoRouteHints.delete(lastUserText); return hinted; }
   return MODELS.chatFast;
 }
 
