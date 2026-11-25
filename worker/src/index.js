@@ -1,4 +1,4 @@
-import { MODELS, pickAutoModel, buildAutoFallbackList, isQuotaError } from './models.js';
+import { MODELS, pickAutoModel, buildAutoFallbackList, isQuotaError, normalizeChatModel, buildThinkingConfig } from './models.js';
 import { saveBase64ToR2, listR2Files, getR2File, deleteR2File } from './storage.js';
 import {
   createConversation,
@@ -83,7 +83,10 @@ async function askGemini(env, apiKey, model, prompt, { webSearch = false } = {})
 
 // ---------- /api/chat/stream ----------
 function handleChatStream(body, env, cors, ctx, userId) {
-  const { messages = [], model = 'auto', thinking = false, thinkingEffort, webSearch = false, systemInstruction, attachments = [] } = body;
+  const { messages = [], model: requestedModel = 'auto', thinking = false, thinkingEffort, webSearch = false, systemInstruction, attachments = [] } = body;
+  // Tên model lạ hoặc đã bỏ (vd. bản frontend cũ còn nhớ gemini-3-flash-preview, 3.1 Pro, Flash-Lite...)
+  // -> đổi về 'auto' thay vì báo lỗi. Danh sách model được phép nằm trong models.js.
+  const model = normalizeChatModel(requestedModel);
 
   const { readable, writable } = new TransformStream();
   const writer = writable.getWriter();
@@ -95,23 +98,15 @@ function handleChatStream(body, env, cors, ctx, userId) {
       const keyChain = await getGeminiKeyChain(env, userId);
       if (keyChain.length === 0) { await send('error', 'Thiếu GEMINI_API_KEY (đặt bằng: wrangler secret put GEMINI_API_KEY, hoặc cấu hình GEMINI_API_KEY_OWNER + GEMINI_API_KEY_POOL)'); await writer.close(); return; }
 
-      // Model "tốt cho code" (gemini-3.5-flash) chỉ dành cho chủ app. Người khác chọn model
-      // này thì tự động rơi về model chat thường (chatSmart) thay vì báo lỗi làm gián đoạn.
-      const isOwnerChat = !!(userId && env.OWNER_USER_ID && userId === env.OWNER_USER_ID);
-      let effectiveModel = model;
-      if (!isOwnerChat && model === MODELS.chatCoding) {
-        effectiveModel = MODELS.chatSmart;
-      }
-
+      // gemini-3.5-flash giờ MỌI NGƯỜI dùng được (trước đây chỉ chủ app, người khác bị hạ xuống chatSmart).
       const lastUserMsg = [...messages].reverse().find(m => m.role === 'user');
       const lastUserText = lastUserMsg?.parts?.map(p => p.text || '').join(' ') || '';
-      const isAuto = effectiveModel === 'auto';
+      const isAuto = model === 'auto';
       // Chế độ Auto: thử LẦN LƯỢT các model trong danh sách fallback nếu model đang thử bị từ chối
       // vì HẾT HẠN MỨC (khác tên model = khác hạn mức riêng trên Gemini API). Chỉ chuyển sang model
       // kế tiếp khi đúng là lỗi hết hạn mức — lỗi khác (sai request, API key...) thì dừng báo lỗi
       // ngay, thử thêm model khác cũng sẽ lỗi y hệt, chỉ tốn thời gian chờ của người dùng.
-      const candidates = (isAuto ? buildAutoFallbackList(pickAutoModel(lastUserText, { webSearch })) : [effectiveModel])
-        .filter(m => isOwnerChat || m !== MODELS.chatCoding); // Auto cũng không được tự chọn trúng model coding nếu không phải chủ app
+      const candidates = isAuto ? buildAutoFallbackList(pickAutoModel(lastUserText, { webSearch })) : [model];
 
       const contents = messages.map(m => ({
         role: m.role === 'assistant' ? 'model' : 'user',
@@ -125,28 +120,29 @@ function handleChatStream(body, env, cors, ctx, userId) {
       }
 
       // ⚠️ FIX lỗi "Auto không hoạt động": trước đây LUÔN gửi thinkingConfig (kể cả
-      // { thinkingBudget: 0 }) cho MỌI model. Một số model Flash-Lite/Flash rẻ mà chế độ
-      // Auto hay chọn (gemini-3.1-flash-lite, gemini-3.8-flash) không chấp nhận field này khi
-      // không thật sự cần "thinking" -> Google trả lỗi 400 -> FE hiện lỗi ngay khi ở chế độ Auto,
-      // trong khi chọn tay 1 model khác (vốn hay được test kỹ hơn) thì không sao.
-      // Chỉ gửi thinkingConfig khi người dùng THẬT SỰ bật công tắc "Thinking".
-      const reqBody = { contents };
-      // Mức nỗ lực (Thấp / Trung bình / Cao) từ popup model -> ngân sách suy luận. "Cao" = -1: để model tự quyết
-      // (tối đa theo model). Dùng thinkingBudget vì đã chạy ổn với mọi model trong app; 1024 và 8192 nằm trong
-      // giới hạn của cả dòng Flash-Lite, Flash lẫn Pro.
-      const THINKING_BUDGETS = { low: 1024, medium: 8192, high: -1 };
-      if (thinking) reqBody.generationConfig = { thinkingConfig: { thinkingBudget: THINKING_BUDGETS[thinkingEffort] ?? -1 } };
-      if (systemInstruction) reqBody.systemInstruction = { parts: [{ text: systemInstruction }] };
-      if (webSearch) reqBody.tools = [{ google_search: {} }];
+      // { thinkingBudget: 0 }) cho MỌI model. Một số model Flash rẻ mà chế độ Auto hay chọn
+      // không chấp nhận field này khi không thật sự cần "thinking" -> Google trả lỗi 400 -> FE hiện
+      // lỗi ngay khi ở chế độ Auto, trong khi chọn tay 1 model khác (vốn hay được test kỹ hơn) thì không sao.
+      // Chỉ gửi thinkingConfig khi cần — và nội dung thinkingConfig KHÁC NHAU theo từng dòng model nên
+      // được dựng riêng cho từng model đang thử (xem buildThinkingConfig trong models.js):
+      //  - 3.5 Flash    : thinkingBudget theo mức nỗ lực Thấp/Trung bình/Cao (FE luôn bật thinking cho model này).
+      //  - 4 Hydrogen   : thinkingLevel low | medium | high | xhigh (xhigh tốn nhiều token, FE đã cảnh báo trước).
+      //  - Gemma 4      : chỉ bật/tắt -> thinkingLevel 'high' / 'minimal'.
+      const baseBody = { contents };
+      if (systemInstruction) baseBody.systemInstruction = { parts: [{ text: systemInstruction }] };
+      if (webSearch) baseBody.tools = [{ google_search: {} }];
 
       let upstream, chosenModel, lastErrText = '';
       outer:
       for (let i = 0; i < candidates.length; i++) {
         chosenModel = candidates[i];
+        const thinkingConfig = buildThinkingConfig(chosenModel, thinking, thinkingEffort);
+        const reqBody = thinkingConfig ? { ...baseBody, generationConfig: { thinkingConfig } } : baseBody;
+        const reqBodyStr = JSON.stringify(reqBody);
         for (let k = 0; k < keyChain.length; k++) {
           const key = keyChain[k];
           upstream = await geminiFetch(env, `${GEMINI_BASE}/${chosenModel}:streamGenerateContent?alt=sse&key=${key}`, {
-            method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(reqBody),
+            method: 'POST', headers: { 'Content-Type': 'application/json' }, body: reqBodyStr,
           });
           if (upstream.ok && upstream.body) break outer; // model + key này dùng được -> dừng thử, dùng luôn
           lastErrText = await upstream.text();
@@ -822,13 +818,15 @@ export default {
         const prompt = body?.prompt;
         if (!prompt || typeof prompt !== 'string') return json({ error: 'Thiếu prompt (string)' }, cors, 400);
 
-        // Cho phép chọn model qua field "model" (auto/lite/fast/smart) — mặc định chatSmart nếu
-        // không gửi hoặc gửi giá trị lạ. Model coding luôn bị chặn ở đây cho non-owner, kể cả khi
-        // gửi thẳng tên model đó qua request (không đi qua UI).
-        const ALLOWED_EXTERNAL_MODELS = { lite: MODELS.chatLite, fast: MODELS.chatFast, smart: MODELS.chatSmart, coding: MODELS.chatCoding };
-        const isOwnerExt = !!(userId && env.OWNER_USER_ID && userId === env.OWNER_USER_ID);
-        let chosenModel = ALLOWED_EXTERNAL_MODELS[body?.model] || MODELS.chatSmart;
-        if (chosenModel === MODELS.chatCoding && !isOwnerExt) chosenModel = MODELS.chatSmart;
+        // Cho phép chọn model qua field "model". Các khoá cũ (lite/fast/smart/coding) vẫn được giữ để
+        // tích hợp đã có không bị gãy — giờ tất cả đều trỏ về 3.5 Flash (mọi người dùng được, không còn
+        // giới hạn chủ app). Thêm khoá mới cho Gemma 4. Giá trị lạ/thiếu -> mặc định 3.5 Flash.
+        // (Gemini 4 Hydrogen chưa mở qua API key ngoài để tránh tốn token ngoài ý muốn.)
+        const ALLOWED_EXTERNAL_MODELS = {
+          lite: MODELS.chatLite, fast: MODELS.chatFast, smart: MODELS.chatSmart, coding: MODELS.chatCoding,
+          flash: MODELS.chatCoding, 'gemma-31b': MODELS.chatGemmaLarge, 'gemma-26b': MODELS.chatGemmaMoe,
+        };
+        const chosenModel = ALLOWED_EXTERNAL_MODELS[body?.model] || MODELS.chatSmart;
 
         const keyChain = await getGeminiKeyChain(env, userId);
         if (keyChain.length === 0) return json({ error: 'Server chưa cấu hình GEMINI_API_KEY' }, cors, 400);
