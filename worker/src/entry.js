@@ -1,9 +1,12 @@
 // Điểm vào của Worker (wrangler.toml: main = "src/entry.js"). Bọc index.js để:
 //  1. Chế độ Auto: nhờ Cloudflare AI chọn model + mức nỗ lực rồi giao cho handler chat cũ.
 //  2. Tạo ảnh / tạo video / Deep Research đã bị gỡ khỏi app: các route này trả 410 (đỡ tốn quota/billing).
+//  3. POST /api/auto/route: cho Agent Mode (chạy ở Render) và "Mở web & hỏi AI" hỏi Cloudflare AI nên dùng model nào.
+//  4. "Mở web & hỏi AI" (/api/search/browse) dùng đúng model người dùng chọn.
 import base, { GeminiProxyDO, GeminiLiveDO } from './index.js';
 import { routeAuto } from './autoRouter.js';
-import { rememberAutoRoute } from './models.js';
+import { rememberAutoRoute, modelScope, normalizeChatModel } from './models.js';
+import { getUserIdFromRequest } from './auth.js';
 
 export { GeminiProxyDO, GeminiLiveDO };
 
@@ -14,19 +17,50 @@ const REMOVED = [
   /^\/api\/search\/deep-research$/,
 ];
 
+const jsonRes = (obj, request, status = 200) => new Response(JSON.stringify(obj), {
+  status,
+  headers: {
+    'Content-Type': 'application/json',
+    'Access-Control-Allow-Origin': request.headers.get('Origin') || '*',
+    'Vary': 'Origin',
+  },
+});
+
 export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
 
     if (request.method !== 'OPTIONS' && REMOVED.some(re => re.test(url.pathname))) {
-      return new Response(JSON.stringify({ error: 'Tính năng này đã được gỡ khỏi app.' }), {
-        status: 410,
-        headers: {
-          'Content-Type': 'application/json',
-          'Access-Control-Allow-Origin': request.headers.get('Origin') || '*',
-          'Vary': 'Origin',
-        },
-      });
+      return jsonRes({ error: 'Tính năng này đã được gỡ khỏi app.' }, request, 410);
+    }
+
+    // Hỏi Cloudflare AI: câu này nên dùng model nào? (cần đăng nhập). Trả { model, level, source }.
+    if (request.method === 'POST' && url.pathname === '/api/auto/route') {
+      const userId = await getUserIdFromRequest(request, env);
+      if (!userId) return jsonRes({ error: 'Chưa đăng nhập' }, request, 401);
+      let text = '';
+      try { text = String((await request.json())?.text || ''); } catch (_) {}
+      const route = await routeAuto(env, { text });
+      return jsonRes({ model: route.model, level: route.level, source: route.source }, request);
+    }
+
+    // "Mở web & hỏi AI": chạy handler cũ trong phạm vi model người dùng chọn (MODELS.chatSmart đọc từ modelScope).
+    if (request.method === 'POST' && url.pathname === '/api/search/browse' && request.headers.get('Authorization')) {
+      const backup = request.clone();
+      try {
+        const body = await request.json();
+        let model = body.model;
+        if (model === 'auto') {
+          model = (await routeAuto(env, { text: body.question || body.url || '' })).model;
+        }
+        model = normalizeChatModel(model);
+        const req = new Request(request, { body: JSON.stringify(body) });
+        if (model === 'auto') return base.fetch(req, env, ctx);
+        return modelScope.run({ model }, () => base.fetch(req, env, ctx));
+      } catch (e) {
+        console.warn('[entry] browse: không áp dụng được model đã chọn:', e.message);
+        return base.fetch(backup, env, ctx);
+      }
     }
 
     if (request.method === 'POST' && url.pathname === '/api/chat/stream' && request.headers.get('Authorization')) {
