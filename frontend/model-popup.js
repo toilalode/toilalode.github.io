@@ -9,8 +9,8 @@
 //  - 4 Hydrogen      : ẨN tia sét, luôn suy luận; thanh nỗ lực có thêm Xhigh (có cảnh báo tốn token).
 //  - Gemma 4 (2 bản) : KHÔNG có thanh nỗ lực — chỉ dùng tia sét để bật/tắt thinking.
 //
-// Các mục ngoài Chat (Code Editor, Mở web & hỏi AI, Agent Mode, Artifacts, Giải bài tập, Voice) không có
-// nút chọn model nên luôn dùng Auto.
+// Code Editor, Giải bài tập, Artifacts có nút chọn model riêng (dùng chung popup này).
+// Mở web & hỏi AI, Agent Mode chạy model cố định phía server; Voice dùng Gemini Live.
 //
 // Gỡ khỏi giao diện: Tạo ảnh, Tạo video, Deep Research (xem removeDroppedFeatures()).
 // Mở lại hội thoại cũ: về đúng mục đã tạo ra nó (Code, Agent, Giải bài tập...) thay vì nhảy sang Chat.
@@ -204,7 +204,7 @@
   });
 
   document.addEventListener('click', (e) => {
-    if (e.target.closest && e.target.closest('#modelPillBtn')) {
+    if (e.target.closest && e.target.closest('#modelPillBtn, .model-pill-extra')) {
       e.stopPropagation();
       e.preventDefault();
       refresh();
@@ -220,17 +220,31 @@
     lbl.textContent = '';
     if (state.thinking && kind === 'gemma') lbl.insertAdjacentHTML('beforeend', boltSvg('pill-bolt'));
     lbl.append(m.label);
+    document.querySelectorAll('.model-pill-extra .pill-label').forEach(x => { x.innerHTML = lbl.innerHTML; });
     refresh();
   };
 
+  // Nút chọn model cho Code Editor, Giải bài tập, Artifacts (giống nút ở Chat, dùng chung popup + state.model).
+  const EXTRA_PILL_HOSTS = ['#panel-code .composer-toolbar-left', '#panel-homework .composer-toolbar-left', '#artifactsListView .composer-toolbar-left'];
+  EXTRA_PILL_HOSTS.forEach(sel => {
+    const host = document.querySelector(sel);
+    if (!host || host.querySelector('.model-pill-extra')) return;
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'topbar-controls model-pill-extra';
+    b.title = 'Chọn model';
+    b.innerHTML = '<span class="pill-label"></span> <span class="chev">▾</span>';
+    host.prepend(b);
+  });
+
   // Gửi kèm model + mức nỗ lực.
-  //  - Ngoài Chat (Code, Giải bài tập, Artifacts...): luôn Auto.
+  //  - Code Editor / Giải bài tập / Artifacts: dùng model đang chọn (có nút chọn model riêng).
   //  - Auto: không gửi thinking/effort — server (Cloudflare AI) tự quyết.
   //  - 3.5 Flash / Hydrogen: luôn suy luận kèm mức nỗ lực đã chọn.
   const origStreamPost = window.streamPost;
   window.streamPost = function (url, payload, handlers, abortSignal) {
     if (payload && typeof url === 'string' && url.includes('/api/chat/stream')) {
-      if (state.mode !== 'chat') payload = { ...payload, model: 'auto' };
+      if (['code', 'homework', 'artifacts'].includes(state.mode)) payload = { ...payload, model: state.model };
       const kind = kindOf(payload.model);
       if (kind === 'auto') {
         const { thinkingEffort, ...rest } = payload;
