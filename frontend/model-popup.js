@@ -9,8 +9,9 @@
 //  - 4 Hydrogen      : ẨN tia sét, luôn suy luận; thanh nỗ lực có thêm Xhigh (có cảnh báo tốn token).
 //  - Gemma 4 (2 bản) : KHÔNG có thanh nỗ lực — chỉ dùng tia sét để bật/tắt thinking.
 //
-// Code Editor, Giải bài tập, Artifacts có nút chọn model riêng (dùng chung popup này).
-// Mở web & hỏi AI, Agent Mode chạy model cố định phía server; Voice dùng Gemini Live.
+// Code Editor, Giải bài tập, Artifacts, Mở web & hỏi AI, Agent Mode có nút chọn model riêng (dùng chung popup này).
+// Với Mở web & hỏi AI và Agent Mode, chọn Auto thì hỏi Cloudflare AI (POST /api/auto/route) rồi gửi model cụ thể.
+// Thanh nỗ lực / tia sét không áp dụng cho 2 mục này. Voice dùng Gemini Live nên không có nút chọn.
 //
 // Gỡ khỏi giao diện: Tạo ảnh, Tạo video, Deep Research (xem removeDroppedFeatures()).
 // Mở lại hội thoại cũ: về đúng mục đã tạo ra nó (Code, Agent, Giải bài tập...) thay vì nhảy sang Chat.
@@ -224,8 +225,9 @@
     refresh();
   };
 
-  // Nút chọn model cho Code Editor, Giải bài tập, Artifacts (giống nút ở Chat, dùng chung popup + state.model).
-  const EXTRA_PILL_HOSTS = ['#panel-code .composer-toolbar-left', '#panel-homework .composer-toolbar-left', '#artifactsListView .composer-toolbar-left'];
+  // Nút chọn model cho Code Editor, Giải bài tập, Artifacts, Mở web & hỏi AI, Agent Mode
+  // (giống nút ở Chat, dùng chung popup + state.model).
+  const EXTRA_PILL_HOSTS = ['#panel-code .composer-toolbar-left', '#panel-homework .composer-toolbar-left', '#artifactsListView .composer-toolbar-left', '#panel-webask .composer-toolbar-left', '#agentView-research .composer-toolbar-left'];
   EXTRA_PILL_HOSTS.forEach(sel => {
     const host = document.querySelector(sel);
     if (!host || host.querySelector('.model-pill-extra')) return;
@@ -241,8 +243,39 @@
   //  - Code Editor / Giải bài tập / Artifacts: dùng model đang chọn (có nút chọn model riêng).
   //  - Auto: không gửi thinking/effort — server (Cloudflare AI) tự quyết.
   //  - 3.5 Flash / Hydrogen: luôn suy luận kèm mức nỗ lực đã chọn.
+  // Hỏi Cloudflare AI (qua Worker) nên dùng model nào cho câu này; lỗi/chậm thì dùng 3.5 Flash.
+  const DEFAULT_MODEL = 'gemini-3.5-flash';
+  const origApiFetch = window.apiFetch;
+  async function resolveModel(text) {
+    if (state.model !== 'auto') return state.model;
+    try {
+      const r = await origApiFetch(WORKER_BASE + '/api/auto/route', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text: String(text || '').slice(0, 1500) }),
+      });
+      const d = await r.json();
+      return d && d.model ? d.model : DEFAULT_MODEL;
+    } catch (_) { return DEFAULT_MODEL; }
+  }
+
+  // "Mở web & hỏi AI" gọi /api/search/browse bằng apiFetch -> gắn model đã chọn vào body.
+  window.apiFetch = async function (url, opts = {}) {
+    if (typeof url === 'string' && url.endsWith('/api/search/browse') && opts && typeof opts.body === 'string') {
+      try {
+        const b = JSON.parse(opts.body);
+        b.model = await resolveModel(b.question || b.url || '');
+        opts = { ...opts, body: JSON.stringify(b) };
+      } catch (_) { /* gửi nguyên body cũ */ }
+    }
+    return origApiFetch.call(this, url, opts);
+  };
+
   const origStreamPost = window.streamPost;
   window.streamPost = function (url, payload, handlers, abortSignal) {
+    // Agent Mode (chạy ở backend Render): gửi kèm model cụ thể.
+    if (payload && typeof url === 'string' && url.includes('/api/agent/')) {
+      const text = payload.task || (typeof lastAgentTask === 'string' ? lastAgentTask : '');
+      return resolveModel(text).then(m => origStreamPost.call(this, url, { ...payload, model: m }, handlers, abortSignal));
+    }
     if (payload && typeof url === 'string' && url.includes('/api/chat/stream')) {
       if (['code', 'homework', 'artifacts'].includes(state.mode)) payload = { ...payload, model: state.model };
       const kind = kindOf(payload.model);
