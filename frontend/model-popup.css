@@ -20,7 +20,8 @@
 .effort-close:hover, .effort-bolt:hover { background: var(--bg-hover); }
 .effort-close svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; }
 
-/* Tia sét Deep Think: không màu (viền rỗng) = TẮT; tô màu = BẬT */
+/* Tia sét Deep Think: không màu (viền rỗng) = TẮT; tô màu = BẬT.
+   Chỉ hiện ở Auto và Gemma; 3.5 Flash / 4 Hydrogen luôn suy luận nên JS ẩn nút này (visibility: hidden). */
 .effort-bolt svg, .pill-bolt {
   fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linejoin: round; stroke-linecap: round;
   transition: fill .15s;
@@ -57,9 +58,13 @@
   width: 20px; height: 20px; border-radius: 50%; background: var(--accent); border: 3px solid #fff; box-shadow: var(--shadow-md);
 }
 
-.effort-stops { display: grid; grid-template-columns: 1fr 1fr 1fr; }
-.effort-stop { background: none; border: none; font: inherit; font-size: 13.5px; color: var(--text-faint); cursor: pointer; padding: 6px 0; }
-.effort-stop:nth-child(1) { text-align: left; }
-.effort-stop:nth-child(2) { text-align: center; }
-.effort-stop:nth-child(3) { text-align: right; }
+/* Số mức đổi theo model: 3 (Auto, 3.5 Flash) hoặc 4 (4 Hydrogen, thêm Xhigh) — JS đặt --n. */
+.effort-stops { display: grid; grid-template-columns: repeat(var(--n, 3), 1fr); }
+.effort-stop { background: none; border: none; font: inherit; font-size: 13.5px; color: var(--text-faint); cursor: pointer; padding: 6px 0; text-align: center; }
+.effort-stop:first-child { text-align: left; }
+.effort-stop:last-child { text-align: right; }
 .effort-stop.active { color: var(--accent); font-weight: 700; }
+
+/* Cảnh báo tốn token (Hydrogen + Xhigh) và ghi chú riêng của Gemma */
+.effort-warn { margin-top: 12px; font-size: 12.5px; line-height: 1.45; color: #d97706; }
+.effort-hint { padding: 4px 24px 2px; font-size: 13px; line-height: 1.45; color: var(--text-secondary); }
