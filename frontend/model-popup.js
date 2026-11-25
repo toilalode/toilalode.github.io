@@ -1,26 +1,25 @@
-// ===================== POPUP MODEL + MỨC SUY LUẬN (kiểu ChatGPT) =====================
+// ===================== POPUP MODEL + MỨC SUY LUẬN =====================
 // Nạp SAU app.js. Dùng lại các thứ app.js đã có: state, els, MODEL_OPTIONS, modelSheet, modelBackdrop,
 // renderModelSheet(), openSheet(), closeSheet() — nên không phải sửa app.js.
 //
-// Danh sách model (ghi đè MODEL_OPTIONS của app.js ngay khi file này nạp):
-//   Auto · 3.5 Flash · 4 Hydrogen · Gemma 4 31B · Gemma 4 26B A4B
-//   (đã bỏ 3.1 Flash-Lite, 3 Flash, 3.1 Pro; 3.5 Flash giờ mọi người dùng được)
-//
 // Cách popup hoạt động theo từng loại model:
-//  - Auto            : tia sét Deep Think (bật/tắt) + thanh nỗ lực Thấp / Trung bình / Cao (như cũ).
-//  - 3.5 Flash       : ẨN tia sét, luôn suy luận; chỉ có thanh nỗ lực Thấp / Trung bình / Cao (giữ nguyên).
-//  - 4 Hydrogen      : ẨN tia sét, luôn suy luận; thanh nỗ lực có thêm mức Xhigh. Chọn Xhigh sẽ hiện
-//                      cảnh báo tốn token và phải bấm đồng ý trước khi dùng.
-//  - Gemma 4 (2 bản) : KHÔNG có thanh nỗ lực (Gemma chỉ có bật/tắt suy luận) — chỉ dùng tia sét để
-//                      bật/tắt thinking.
-//  - Giữa: tên model, bấm vào để đổi model. Góc trên phải: nút X đóng popup.
-//  - Mức đã chọn gửi lên server qua trường `thinkingEffort` của /api/chat/stream.
+//  - Auto            : KHÔNG còn tia sét và thanh nỗ lực. AI của Cloudflare đọc câu hỏi rồi TỰ chọn model
+//                      + mức nỗ lực phù hợp (xem worker/src/autoRouter.js).
+//  - 3.5 Flash       : ẨN tia sét, luôn suy luận; thanh nỗ lực Thấp / Trung bình / Cao.
+//  - 4 Hydrogen      : ẨN tia sét, luôn suy luận; thanh nỗ lực có thêm Xhigh (có cảnh báo tốn token).
+//  - Gemma 4 (2 bản) : KHÔNG có thanh nỗ lực — chỉ dùng tia sét để bật/tắt thinking.
+//
+// Các mục ngoài Chat (Code Editor, Mở web & hỏi AI, Agent Mode, Artifacts, Giải bài tập, Voice) không có
+// nút chọn model nên luôn dùng Auto.
+//
+// Gỡ khỏi giao diện: Tạo ảnh, Tạo video, Deep Research (xem removeDroppedFeatures()).
+// Mở lại hội thoại cũ: về đúng mục đã tạo ra nó (Code, Agent, Giải bài tập...) thay vì nhảy sang Chat.
 (() => {
   'use strict';
 
   // ---------- danh sách model ----------
   const MODEL_LIST = [
-    { value: 'auto', label: '⚡ Auto', desc: 'Tự chọn model phù hợp nhất cho từng câu hỏi' },
+    { value: 'auto', label: '⚡ Auto', desc: 'AI tự chọn model và mức nỗ lực cho từng câu hỏi' },
     { value: 'gemini-3.5-flash', label: '3.5 Flash', desc: 'Nhanh, mạnh cho cả chat lẫn viết/sửa code' },
     { value: 'gemini-4-hydrogen', label: '4 Hydrogen', desc: 'Gemini 4 mới nhất — nhanh, suy luận sâu (mức Xhigh tốn nhiều token)' },
     { value: 'gemma-4-31b-it', label: 'Gemma 4 31B', desc: 'Model mở của Google, bản lớn nhất' },
@@ -28,14 +27,11 @@
   ];
   MODEL_OPTIONS.splice(0, MODEL_OPTIONS.length, ...MODEL_LIST);
 
-  // Người dùng cũ có thể còn lưu model đã bỏ (Flash-Lite / 3 Flash / 3.1 Pro) -> về Auto.
   if (!MODEL_OPTIONS.some(m => m.value === state.model)) {
     state.model = 'auto';
     try { localStorage.setItem('myai_model', 'auto'); } catch (_) {}
   }
 
-  // Dropdown "Thử gọi API bằng key" trong Cài đặt: cập nhật theo model mới.
-  // (giữ value="coding" cho 3.5 Flash vì app.js kiểm tra option này khi xác minh chủ app)
   const testSel = document.getElementById('apiKeyTestModel');
   if (testSel) {
     testSel.innerHTML = [
@@ -44,6 +40,16 @@
       ['gemma-26b', 'Gemma 4 26B A4B'],
     ].map(([v, t]) => `<option value="${v}">${t}</option>`).join('');
   }
+
+  // ---------- gỡ Tạo ảnh / Tạo video / Deep Research khỏi giao diện ----------
+  // app.js đã gắn sự kiện vào các phần tử này lúc tải, nên gỡ SAU khi app.js chạy xong (an toàn, không lỗi).
+  function removeDroppedFeatures() {
+    document.querySelectorAll('.nav-btn[data-mode="image"], .nav-btn[data-mode="video"]').forEach(el => el.remove());
+    ['panel-image', 'panel-video', 'researchWidget-chat', 'deepResearchChip'].forEach(id => document.getElementById(id)?.remove());
+    document.getElementById('deepResearchToggle')?.closest('label')?.remove();
+    state.deepResearchMode = false;
+  }
+  removeDroppedFeatures();
 
   // ---------- loại model & các mức nỗ lực ----------
   const BASE_LEVELS = [
@@ -56,11 +62,13 @@
   const DEEP_THINK_LABEL = 'Deep Think';
   const XHIGH_WARNING = '⚠️ Mức Xhigh của Gemini 4 Hydrogen suy luận rất sâu nên tốn nhiều token hơn hẳn các mức khác '
     + '(dễ chạm giới hạn hạn mức nhanh hơn). Bạn vẫn muốn dùng mức này?';
+  const HINT_AUTO = 'Auto: AI của Cloudflare đọc câu hỏi rồi tự chọn model và mức nỗ lực phù hợp.';
+  const HINT_GEMMA = 'Gemma chỉ có bật/tắt suy luận — dùng nút tia sét ở góc trên bên trái.';
 
   const kindOf = (v) => v === 'auto' ? 'auto'
     : /^gemma-/i.test(v) ? 'gemma'
     : v === 'gemini-4-hydrogen' ? 'hydrogen'
-    : 'flash'; // gemini-3.5-flash
+    : 'flash';
   const levelsFor = (kind) => kind === 'hydrogen' ? HYDROGEN_LEVELS : BASE_LEVELS;
 
   let effort = localStorage.getItem(EFFORT_KEY);
@@ -69,7 +77,6 @@
     effort = key;
     try { localStorage.setItem(EFFORT_KEY, key); } catch (_) {}
   }
-  // Mức nỗ lực thực sự áp dụng cho 1 model (xhigh chỉ có ở Hydrogen, model khác tự hạ về high).
   function effortFor(modelValue) {
     return levelsFor(kindOf(modelValue)).some(l => l.key === effort) ? effort : 'high';
   }
@@ -77,7 +84,7 @@
   const BOLT_PATH = 'M13 2 4.5 13.5H11L10 22l9-12h-6.5z';
   const boltSvg = (cls) => `<svg class="${cls}" viewBox="0 0 24 24" aria-hidden="true"><path d="${BOLT_PATH}"/></svg>`;
 
-  // ---------- dựng popup (không cần sửa index.html ngoài 2 thẻ nạp file) ----------
+  // ---------- dựng popup ----------
   const backdrop = document.createElement('div');
   backdrop.className = 'sheet-backdrop hidden';
   backdrop.id = 'effortBackdrop';
@@ -105,7 +112,7 @@
       <div class="effort-stops" id="effortStops"></div>
       <div class="effort-warn" id="effortWarn" style="display:none">⚠️ Xhigh suy luận rất sâu nên tốn nhiều token hơn hẳn các mức khác.</div>
     </div>
-    <div class="effort-hint" id="effortHint" style="display:none">Gemma chỉ có bật/tắt suy luận — dùng nút tia sét ở góc trên bên trái.</div>`;
+    <div class="effort-hint" id="effortHint" style="display:none"></div>`;
   document.body.append(backdrop, sheet);
 
   const boltBtn = sheet.querySelector('#effortBolt');
@@ -117,13 +124,11 @@
   const warnEl = sheet.querySelector('#effortWarn');
   const hintEl = sheet.querySelector('#effortHint');
 
-  // ---------- trạng thái ----------
   function currentModel() {
     return MODEL_OPTIONS.find(m => m.value === state.model) || MODEL_OPTIONS[0];
   }
   const currentKind = () => kindOf(currentModel().value);
 
-  // Tô thanh + nhãn đang chọn ở vị trí idx (dùng cả lúc đang kéo thử, chưa lưu).
   function paint(idx, n) {
     range.style.setProperty('--pct', (n > 1 ? (idx / (n - 1)) * 100 : 0) + '%');
     stopsEl.querySelectorAll('.effort-stop').forEach((b, i) => b.classList.toggle('active', i === idx));
@@ -133,14 +138,11 @@
     const m = currentModel();
     const kind = kindOf(m.value);
     const levels = levelsFor(kind);
-
-    // Xhigh chỉ có ở Hydrogen: sang model khác thì hạ về Cao (và lần sau chọn lại Xhigh sẽ hỏi lại).
     if (!levels.some(l => l.key === effort)) saveEffort('high');
 
-    // Tia sét chỉ dùng cho Auto và Gemma. 3.5 Flash / Hydrogen luôn suy luận nên ẩn đi
-    // (visibility để tên model vẫn nằm giữa header). Gemma không có thanh nỗ lực.
-    const hasBolt = kind === 'auto' || kind === 'gemma';
-    const hasSlider = kind !== 'gemma';
+    // Tia sét: chỉ còn ở Gemma. Thanh nỗ lực: chỉ ở 3.5 Flash và Hydrogen (Auto tự chọn, Gemma chỉ bật/tắt).
+    const hasBolt = kind === 'gemma';
+    const hasSlider = kind === 'flash' || kind === 'hydrogen';
     const on = hasBolt && !!state.thinking;
     boltBtn.style.visibility = hasBolt ? '' : 'hidden';
     boltBtn.disabled = !hasBolt;
@@ -149,7 +151,8 @@
     boltBtn.classList.toggle('on', on);
     boltBtn.setAttribute('aria-pressed', String(on));
     bodyEl.style.display = hasSlider ? '' : 'none';
-    hintEl.style.display = kind === 'gemma' ? '' : 'none';
+    hintEl.style.display = (kind === 'auto' || kind === 'gemma') ? '' : 'none';
+    hintEl.textContent = kind === 'auto' ? HINT_AUTO : HINT_GEMMA;
 
     const idx = Math.max(0, levels.findIndex(l => l.key === effort));
     stopsEl.innerHTML = levels.map((l, i) => `<button type="button" class="effort-stop" data-i="${i}">${l.label}</button>`).join('');
@@ -159,10 +162,9 @@
     paint(idx, levels.length);
     warnEl.style.display = (kind === 'hydrogen' && effort === 'xhigh') ? '' : 'none';
 
-    modelName.textContent = m.label.replace(/^\u26A1\uFE0F?\s*/u, '') || m.label; // bỏ emoji tia sét của nhãn "Auto"
+    modelName.textContent = m.label.replace(/^\u26A1\uFE0F?\s*/u, '') || m.label;
   }
 
-  // Bật/tắt Deep Think thông qua công tắc cũ (đang ẩn) để app.js tự lưu state + localStorage như trước.
   function setThinking(on) {
     const t = els.thinkingToggle;
     if (t.checked !== on) {
@@ -172,21 +174,18 @@
     refresh();
   }
 
-  // Chốt mức nỗ lực. Chọn Xhigh (Hydrogen) -> cảnh báo tốn token, không đồng ý thì giữ mức cũ.
   function commit(i) {
     const levels = levelsFor(currentKind());
     const next = levels[Math.min(levels.length - 1, Math.max(0, i))].key;
     if (next === 'xhigh' && effort !== 'xhigh' && !window.confirm(XHIGH_WARNING)) {
-      refresh(); // trả thanh gạt về mức cũ
+      refresh();
       return;
     }
     saveEffort(next);
     refresh();
   }
 
-  // ---------- sự kiện ----------
   boltBtn.addEventListener('click', () => { if (!boltBtn.disabled) setThinking(!state.thinking); });
-  // Đang kéo: chỉ xem trước (chưa lưu, chưa cảnh báo). Thả tay ('change') mới chốt.
   range.addEventListener('input', () => paint(parseInt(range.value, 10), levelsFor(currentKind()).length));
   range.addEventListener('change', () => commit(parseInt(range.value, 10)));
   stopsEl.addEventListener('click', (e) => {
@@ -198,14 +197,12 @@
   sheet.querySelector('#effortClose').addEventListener('click', close);
   backdrop.addEventListener('click', close);
 
-  // Bấm tên model trong popup -> đóng popup này, mở popup chọn model cũ.
   modelBtn.addEventListener('click', () => {
     close();
     renderModelSheet();
     openSheet(modelSheet, modelBackdrop);
   });
 
-  // Bấm tên model ở ô nhập: chặn ở pha capture của document để app.js không mở popup cũ nữa.
   document.addEventListener('click', (e) => {
     if (e.target.closest && e.target.closest('#modelPillBtn')) {
       e.stopPropagation();
@@ -216,29 +213,175 @@
   }, true);
 
   // ---------- nối với app.js (không sửa app.js) ----------
-  // 1) Nhãn trên nút model: icon tia sét tô màu khi đang bật Deep Think (chỉ Auto / Gemma có tia sét).
   window.updateModelPillLabel = function () {
     const m = currentModel();
     const kind = kindOf(m.value);
     const lbl = els.modelPillLabel;
     lbl.textContent = '';
-    if (state.thinking && (kind === 'auto' || kind === 'gemma')) lbl.insertAdjacentHTML('beforeend', boltSvg('pill-bolt'));
+    if (state.thinking && kind === 'gemma') lbl.insertAdjacentHTML('beforeend', boltSvg('pill-bolt'));
     lbl.append(m.label);
     refresh();
   };
 
-  // 2) Gửi kèm mức nỗ lực. 3.5 Flash và Hydrogen không có tia sét nên LUÔN suy luận (thinking = true).
+  // Gửi kèm model + mức nỗ lực.
+  //  - Ngoài Chat (Code, Giải bài tập, Artifacts...): luôn Auto.
+  //  - Auto: không gửi thinking/effort — server (Cloudflare AI) tự quyết.
+  //  - 3.5 Flash / Hydrogen: luôn suy luận kèm mức nỗ lực đã chọn.
   const origStreamPost = window.streamPost;
   window.streamPost = function (url, payload, handlers, abortSignal) {
     if (payload && typeof url === 'string' && url.includes('/api/chat/stream')) {
+      if (state.mode !== 'chat') payload = { ...payload, model: 'auto' };
       const kind = kindOf(payload.model);
-      if (kind === 'flash' || kind === 'hydrogen') {
+      if (kind === 'auto') {
+        const { thinkingEffort, ...rest } = payload;
+        payload = { ...rest, thinking: false };
+      } else if (kind === 'flash' || kind === 'hydrogen') {
         payload = { ...payload, thinking: true, thinkingEffort: effortFor(payload.model) };
       } else if (payload.thinking) {
         payload = { ...payload, thinkingEffort: effortFor(payload.model) };
       }
     }
     return origStreamPost.call(this, url, payload, handlers, abortSignal);
+  };
+
+  // ---------- MỖI MỤC CÓ HỘI THOẠI RIÊNG + mở lại chat cũ về đúng mục ----------
+  const CONV_MODES_KEY = 'myai_conv_modes';   // { convId: mode }
+  const MODE_CONV_KEY = 'myai_mode_conv';     // { mode: convId đang dùng }
+  const SCOPED = ['chat', 'code', 'homework', 'webask', 'agent', 'artifacts'];
+  const PREFIX_MODE = [['📘', 'homework'], ['🧭', 'webask'], ['🧩', 'artifacts'], ['💻', 'code'], ['🚀', 'agent']];
+  const readJSON = (k) => { try { return JSON.parse(localStorage.getItem(k)) || {}; } catch (_) { return {}; } };
+  const writeJSON = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (_) {} };
+
+  function modeOfConv(id) {
+    const saved = readJSON(CONV_MODES_KEY)[id];
+    if (saved && SCOPED.includes(saved)) return saved;
+    const title = (allConvs.find(c => c.id === id)?.title || '').trim();
+    const hit = PREFIX_MODE.find(([p]) => title.startsWith(p));
+    return hit ? hit[1] : 'chat';
+  }
+  function rememberConvMode(id, mode) {
+    const map = readJSON(CONV_MODES_KEY);
+    if (!map[id]) { map[id] = mode; writeJSON(CONV_MODES_KEY, map); }
+  }
+  function setCurrentConv(id) {
+    state.conversationId = id || null;
+    try { id ? localStorage.setItem('myai_last_conv', id) : localStorage.removeItem('myai_last_conv'); } catch (_) {}
+  }
+
+  // Ghi nhớ mục nào đã tạo hội thoại nào.
+  const origEnsure = window.ensureConversation;
+  window.ensureConversation = async function (firstText) {
+    const had = state.conversationId;
+    const res = await origEnsure.call(this, firstText);
+    if (!had && state.conversationId) {
+      rememberConvMode(state.conversationId, state.mode);
+      const mc = readJSON(MODE_CONV_KEY); mc[state.mode] = state.conversationId; writeJSON(MODE_CONV_KEY, mc);
+    }
+    return res;
+  };
+
+  // Chuyển mục: cất hội thoại của mục cũ, lấy lại hội thoại của mục mới (không để Code ghi nhầm vào chat Chat).
+  const origSwitchMode = window.switchMode;
+  window.switchMode = function (mode) {
+    if (SCOPED.includes(mode) && SCOPED.includes(state.mode) && mode !== state.mode) {
+      const mc = readJSON(MODE_CONV_KEY);
+      if (state.conversationId) mc[state.mode] = state.conversationId; else delete mc[state.mode];
+      setCurrentConv(mc[mode] || null);
+      writeJSON(MODE_CONV_KEY, mc);
+    }
+    return origSwitchMode.call(this, mode);
+  };
+
+  // Lúc tải trang: hội thoại cuối cùng có thể thuộc Code/Agent... -> không để Chat dùng chung.
+  (function fixInitialConv() {
+    const id = state.conversationId;
+    if (!id) return;
+    const mode = readJSON(CONV_MODES_KEY)[id];
+    if (mode && mode !== 'chat' && SCOPED.includes(mode)) {
+      const mc = readJSON(MODE_CONV_KEY); mc[mode] = id; writeJSON(MODE_CONV_KEY, mc);
+      setCurrentConv(null);
+    }
+  })();
+
+  const codeOf = (t) => { const m = (t || '').match(/```[\w]*\n?([\s\S]*?)```/); return m ? m[1].trim() : null; };
+
+  function restoreIntoMode(mode, msgs) {
+    if (mode === 'chat') {
+      state.history = msgs.map(m => ({ role: m.role, text: m.content }));
+      saveHistory();
+      renderHistory();
+    } else if (mode === 'code') {
+      document.getElementById('codeChatMessages').innerHTML = '';
+      codeEditorHistory.length = 0;
+      let lastCode = null;
+      msgs.forEach(m => {
+        if (m.role === 'user') { appendCodeChatMsg('user', m.content); }
+        else {
+          const { explanation, code } = splitCodeAndExplanation(m.content || '');
+          appendCodeChatMsg('assistant', explanation);
+          if (code) lastCode = code;
+        }
+        codeEditorHistory.push({ role: m.role === 'user' ? 'user' : 'assistant', text: m.content });
+      });
+      if (lastCode !== null) { document.getElementById('codeEditor').value = lastCode; try { refreshCodePreview(); } catch (_) {} }
+    } else if (mode === 'homework') {
+      const u = [...msgs].reverse().find(m => m.role === 'user');
+      const a = [...msgs].reverse().find(m => m.role !== 'user');
+      hw.topic = u ? u.content : '';
+      hw.solution = a ? a.content : '';
+      hw.flashcards = []; hw.quiz = []; hw.cardIndex = 0; hw.quizIndex = 0; hw.quizScore = 0;
+      hw.els.emptyHint.classList.add('hidden');
+      hw.els.tabs.classList.remove('hidden');
+      setHwMode('solution');
+      hw.els.solutionBody.innerHTML = renderMarkdown(hw.solution || '');
+      try { enhanceCodeBlocks(hw.els.solutionBody); } catch (_) {}
+    } else if (mode === 'webask') {
+      const box = document.getElementById('webaskResults');
+      box.innerHTML = '';
+      for (let i = 0; i < msgs.length; i++) {
+        if (msgs[i].role !== 'user') continue;
+        const q = msgs[i].content || '';
+        const url = (q.match(/https?:\/\/\S+/) || [''])[0];
+        const ans = msgs[i + 1] && msgs[i + 1].role !== 'user' ? msgs[i + 1].content : '';
+        const card = document.createElement('div');
+        card.className = 'webask-answer';
+        card.innerHTML = `<div class="webask-src">🔗 ${url.replace(/</g, '&lt;')}</div>` + (ans ? renderMarkdown(ans) : '<p class="hint">(chưa có câu trả lời được lưu)</p>');
+        box.prepend(card);
+      }
+    } else if (mode === 'agent') {
+      const log = document.getElementById('agentLog');
+      log.innerHTML = '';
+      document.querySelector('.agent-tab-btn[data-agent-tab="research"]')?.click();
+      msgs.forEach(m => {
+        if (m.role === 'user') addLog(log, '🧭 Nhiệm vụ: ' + m.content);
+        else { const d = document.createElement('div'); d.className = 'agent-final'; d.innerHTML = renderMarkdown(m.content || ''); log.appendChild(d); }
+      });
+    } else if (mode === 'artifacts') {
+      const a = [...msgs].reverse().find(m => m.role !== 'user');
+      const u = [...msgs].reverse().find(m => m.role === 'user');
+      const code = codeOf(a && a.content);
+      if (code) {
+        const art = ArtifactStore.add({ title: ((u && u.content) || 'Artifact').slice(0, 60), code, source: 'artifacts' });
+        openArtifact(art.id);
+      }
+    }
+  }
+
+  // Mở lại 1 hội thoại: về ĐÚNG mục của nó (trước đây luôn nhảy sang Chat).
+  window.selectConversation = async function (id) {
+    try {
+      const r = await apiFetch(API_BASE + `/api/conversations/${id}/messages`);
+      const msgs = await r.json();
+      if (!Array.isArray(msgs)) return;
+      const mode = modeOfConv(id);
+      switchMode(mode);              // cất hội thoại của mục cũ trước
+      setCurrentConv(id);
+      const mc = readJSON(MODE_CONV_KEY); mc[mode] = id; writeJSON(MODE_CONV_KEY, mc);
+      rememberConvMode(id, mode);
+      restoreIntoMode(mode, msgs);
+      const q = els.convSearchInput.value.trim().toLowerCase();
+      renderConvList(q ? allConvs.filter(c => (c.title || '').toLowerCase().includes(q)) : allConvs);
+    } catch (e) { alert('Không tải được hội thoại này.'); }
   };
 
   window.updateModelPillLabel(); // đồng bộ nhãn ngay khi tải trang
