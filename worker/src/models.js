@@ -16,11 +16,18 @@
 //
 // ⚠️ Free tier: 3.5 Flash và TTS là free; model ẢNH / VIDEO KHÔNG free (cần bật billing).
 //    Gemma 4 và Gemini 4 Hydrogen: kiểm tra bảng giá hiện hành trước khi mở rộng cho nhiều người dùng.
+import { AsyncLocalStorage } from 'node:async_hooks';
+
+// Model theo TỪNG REQUEST cho "Mở web & hỏi AI" (handleBrowse) — entry.js chạy request trong
+// modelScope.run({ model }, ...) nên MODELS.chatSmart (dùng bởi handleBrowse) trả đúng model người dùng chọn,
+// các request khác không bị ảnh hưởng (ngoài scope thì vẫn là 3.5 Flash).
+export const modelScope = new AsyncLocalStorage();
+
 export const MODELS = {
   chatLite:    'gemini-3.5-flash',   // (cũ: gemini-3.1-flash-lite — đã bỏ)
   chatFast:    'gemini-3.5-flash',   // (cũ: gemini-3-flash-preview — đã bỏ)
   chatCoding:  'gemini-3.5-flash',   // mọi người dùng được
-  chatSmart:   'gemini-3.5-flash',   // (cũ: gemini-3-flash-preview / 3.1 Pro — đã bỏ)
+  get chatSmart() { return modelScope.getStore()?.model || 'gemini-3.5-flash'; }, // (cũ: gemini-3-flash-preview / 3.1 Pro)
   chatHydrogen:   'gemini-4-hydrogen',
   chatGemmaLarge: 'gemma-4-31b-it',
   chatGemmaMoe:   'gemma-4-26b-a4b-it',
