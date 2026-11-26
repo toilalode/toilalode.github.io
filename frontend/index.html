@@ -671,7 +671,20 @@
             <option value="smart">Smart (mặc định — chất lượng tốt)</option>
             <option value="fast">Fast (nhanh)</option>
             <option value="lite">Lite (ngắn gọn, nhanh nhất)</option>
+            <option value="hydrogen">Gemini 4 Hydrogen</option>
+            <option value="gemma">Gemma 4 31B</option>
+            <option value="gemma-moe">Gemma 4 26B-A4B</option>
           </select>
+          <!-- Mức nỗ lực / thinking: api-panel.js tự hiện đúng ô theo model đang chọn
+               (3.5 Flash & Hydrogen = chọn mức nỗ lực; Gemma = chỉ bật/tắt thinking). -->
+          <div id="apiKeyEffortRow" style="display:none;margin-top:8px">
+            <label class="hint" for="apiKeyTestEffort" style="display:block">Mức nỗ lực (thinking)</label>
+            <select id="apiKeyTestEffort" style="width:100%;margin-top:4px"></select>
+          </div>
+          <label id="apiKeyThinkingRow" class="toggle-pill" style="display:none;width:fit-content;margin-top:8px">
+            <input type="checkbox" id="apiKeyTestThinking" />
+            <span>🧠 Bật thinking (Gemma chỉ có bật/tắt)</span>
+          </label>
           <div class="row" style="gap:8px;margin-top:8px">
             <button id="apiKeyTestSendBtn" type="button">🚀 Gửi thử</button>
             <button id="apiKeyGenSnippetBtn" type="button">📄 Xuất code gắn vào file khác</button>
@@ -700,6 +713,7 @@
 </div>
 
 <script src="app.js"></script>
+<script src="api-panel.js"></script>
 <script src="model-popup.js"></script>
 <script src="semantic-scope.js"></script>
 </body>
