@@ -1,7 +1,9 @@
 // Cài đặt -> "🔑 API Key": phần "🧪 Thử gọi API" và "📄 Xuất code gắn vào file khác".
 // Chạy SAU app.js. Thay 2 handler cũ (chỉ gửi { prompt, model }) bằng bản hỗ trợ đúng API mới:
-//   - model:    smart | fast | lite | hydrogen | gemma | gemma-moe  (+ coding, chỉ chủ app — app.js tự thêm option này)
-//   - effort:   3.5 Flash = low|medium|high (có effort => tự bật thinking) | Hydrogen = low|medium|high|xhigh
+//   - model:    smart (= Gemini 3.5 Flash) | hydrogen (= Gemini 4 Hydrogen) | gemma | gemma-moe
+//               (+ coding, chỉ chủ app — app.js tự thêm option này). fast / lite / flash là tên cũ, cùng trỏ về 3.5 Flash.
+//   - effort:   Gemini 3.5 Flash = low|medium|high (có effort => tự bật thinking)
+//               Gemini 4 Hydrogen = low|medium|high|xhigh
 //   - thinking: Gemma chỉ có bật/tắt (true/false), không có effort
 (function () {
   const $ = (id) => document.getElementById(id);
@@ -11,6 +13,26 @@
   const effortRow = $('apiKeyEffortRow');
   const thinkingRow = $('apiKeyThinkingRow');
   if (!modelSel || !effortSel || !thinkingChk || !effortRow || !thinkingRow) return;
+
+  // Ghi rõ tên model thật trong dropdown (trước đây chỉ ghi Smart/Fast/Lite, không nói là Gemini).
+  // Smart / Fast / Lite đều là Gemini 3.5 Flash nên gộp còn 1 lựa chọn.
+  const MODEL_LABELS = {
+    smart: 'Gemini 3.5 Flash (mặc định)',
+    hydrogen: 'Gemini 4 Hydrogen',
+    gemma: 'Gemma 4 31B',
+    'gemma-moe': 'Gemma 4 26B-A4B',
+    coding: 'Gemini 3.5 Flash — tối ưu viết/sửa code (chỉ chủ app)',
+  };
+  function relabelModels() {
+    for (const opt of Array.from(modelSel.options)) {
+      if (opt.value === 'fast' || opt.value === 'lite') { opt.remove(); continue; }
+      const label = MODEL_LABELS[opt.value];
+      if (label && opt.textContent !== label) opt.textContent = label;
+    }
+  }
+  relabelModels();
+  // app.js thêm option "coding" cho chủ app muộn hơn (sau khi tải /api/me) -> gắn nhãn lại khi có thay đổi.
+  new MutationObserver(relabelModels).observe(modelSel, { childList: true });
 
   const kindOf = (m) => (m === 'hydrogen' ? 'hydrogen' : (m === 'gemma' || m === 'gemma-moe') ? 'gemma' : 'flash');
 
@@ -103,15 +125,9 @@
     if (!apiKey) { alert('Chưa có API key (đợi tải xong ở trên).'); return; }
 
     const p = currentParams();
-    const kind = kindOf(p.model);
     const defaults = Object.entries(p)
       .map(([k, v]) => `${k}: ${typeof v === 'string' ? `'${v}'` : v}`)
       .join(', ');
-    const effortNote = {
-      flash: "// effort: 'low' | 'medium' | 'high' (gửi effort = tự bật thinking; bỏ trống = không thinking)",
-      hydrogen: "// effort: 'low' | 'medium' | 'high' | 'xhigh' (mặc định 'high'; xhigh suy luận rất sâu, tốn nhiều token)",
-      gemma: '// thinking: true | false (Gemma chỉ có bật/tắt, không có effort)',
-    }[kind];
 
     code.textContent =
 `<script>
@@ -128,9 +144,19 @@ async function askVelocitix(prompt, options = {}) {
   return data.text;
 }
 
-// model: 'smart' (mặc định) | 'fast' | 'lite' | 'hydrogen' (Gemini 4 Hydrogen) | 'gemma' | 'gemma-moe'
-${effortNote}
-// Ví dụ: await askVelocitix('xin chào')  hoặc  await askVelocitix('xin chào', { model: 'hydrogen', effort: 'low' })
+// ---- model ----
+//   'smart'     : Gemini 3.5 Flash (mặc định) — 'fast' / 'lite' / 'flash' là tên cũ, cũng ra Gemini 3.5 Flash
+//   'hydrogen'  : Gemini 4 Hydrogen
+//   'gemma'     : Gemma 4 31B
+//   'gemma-moe' : Gemma 4 26B-A4B
+// ---- thinking / mức nỗ lực (tuỳ model) ----
+//   Gemini 3.5 Flash  : effort: 'low' | 'medium' | 'high' (gửi effort = tự bật thinking; bỏ trống = không thinking)
+//   Gemini 4 Hydrogen : effort: 'low' | 'medium' | 'high' | 'xhigh' (luôn suy luận, mặc định 'high'; xhigh tốn nhiều token)
+//   Gemma 4           : thinking: true | false (chỉ có bật/tắt, KHÔNG có effort)
+// Ví dụ:
+//   await askVelocitix('xin chào')
+//   await askVelocitix('xin chào', { model: 'hydrogen', effort: 'low' })
+//   await askVelocitix('xin chào', { model: 'gemma', thinking: true })
 </script>`;
 
     box.style.display = 'block';
