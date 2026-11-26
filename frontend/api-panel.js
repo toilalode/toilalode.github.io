@@ -1,10 +1,14 @@
 // Cài đặt -> "🔑 API Key": phần "🧪 Thử gọi API" và "📄 Xuất code gắn vào file khác".
-// Chạy SAU app.js. Thay 2 handler cũ (chỉ gửi { prompt, model }) bằng bản hỗ trợ đúng API mới:
-//   - model:    smart (= Gemini 3.5 Flash) | hydrogen (= Gemini 4 Hydrogen) | gemma | gemma-moe
-//               (+ coding, chỉ chủ app — app.js tự thêm option này). fast / lite / flash là tên cũ, cùng trỏ về 3.5 Flash.
+// Chạy SAU app.js (và TRƯỚC model-popup.js — file đó ghi đè dropdown model lúc tải, nên dropdown ở đây
+// được dựng lại trong DOMContentLoaded, tức là sau khi mọi script đã chạy xong).
+// Thay 2 handler cũ (chỉ gửi { prompt, model }) bằng bản hỗ trợ đúng API mới:
+//   - model:    smart (= Gemini 3.5 Flash) | gemma | gemma-moe | hydrogen (= Gemini 4 Hydrogen, CHỈ chủ app)
+//               fast / lite / flash / coding là tên cũ, cùng trỏ về Gemini 3.5 Flash nên không hiện trong dropdown.
 //   - effort:   Gemini 3.5 Flash = low|medium|high (có effort => tự bật thinking)
 //               Gemini 4 Hydrogen = low|medium|high|xhigh
 //   - thinking: Gemma chỉ có bật/tắt (true/false), không có effort
+// Hydrogen chỉ dành cho chủ app: server chặn thật (entry.js + externalChat.js), ở đây chỉ ẩn khỏi giao diện
+// của người dùng khác (dropdown API và danh sách model của Chat).
 (function () {
   const $ = (id) => document.getElementById(id);
   const modelSel = $('apiKeyTestModel');
@@ -13,26 +17,6 @@
   const effortRow = $('apiKeyEffortRow');
   const thinkingRow = $('apiKeyThinkingRow');
   if (!modelSel || !effortSel || !thinkingChk || !effortRow || !thinkingRow) return;
-
-  // Ghi rõ tên model thật trong dropdown (trước đây chỉ ghi Smart/Fast/Lite, không nói là Gemini).
-  // Smart / Fast / Lite đều là Gemini 3.5 Flash nên gộp còn 1 lựa chọn.
-  const MODEL_LABELS = {
-    smart: 'Gemini 3.5 Flash (mặc định)',
-    hydrogen: 'Gemini 4 Hydrogen',
-    gemma: 'Gemma 4 31B',
-    'gemma-moe': 'Gemma 4 26B-A4B',
-    coding: 'Gemini 3.5 Flash — tối ưu viết/sửa code (chỉ chủ app)',
-  };
-  function relabelModels() {
-    for (const opt of Array.from(modelSel.options)) {
-      if (opt.value === 'fast' || opt.value === 'lite') { opt.remove(); continue; }
-      const label = MODEL_LABELS[opt.value];
-      if (label && opt.textContent !== label) opt.textContent = label;
-    }
-  }
-  relabelModels();
-  // app.js thêm option "coding" cho chủ app muộn hơn (sau khi tải /api/me) -> gắn nhãn lại khi có thay đổi.
-  new MutationObserver(relabelModels).observe(modelSel, { childList: true });
 
   const kindOf = (m) => (m === 'hydrogen' ? 'hydrogen' : (m === 'gemma' || m === 'gemma-moe') ? 'gemma' : 'flash');
 
@@ -63,7 +47,66 @@
     effortSel.value = kind === 'hydrogen' ? 'high' : '';
   }
   modelSel.addEventListener('change', refreshControls);
-  refreshControls();
+
+  // ---- Dropdown model: ghi rõ tên Gemini / Gemma, Hydrogen chỉ hiện cho chủ app ----
+  const MODEL_CHOICES = [
+    // [giá trị gửi lên API, nhãn, chỉ chủ app?]
+    ['smart', 'Gemini 3.5 Flash (mặc định)', false],
+    ['hydrogen', 'Gemini 4 Hydrogen — chỉ chủ app', true],
+    ['gemma', 'Gemma 4 31B', false],
+    ['gemma-moe', 'Gemma 4 26B-A4B', false],
+  ];
+  function buildModelOptions(isOwner) {
+    const prev = modelSel.value;
+    modelSel.innerHTML = '';
+    for (const [value, label, ownerOnly] of MODEL_CHOICES) {
+      if (ownerOnly && !isOwner) continue;
+      const o = document.createElement('option');
+      o.value = value;
+      o.textContent = label;
+      modelSel.appendChild(o);
+    }
+    modelSel.value = Array.from(modelSel.options).some((o) => o.value === prev) ? prev : 'smart';
+    shownKind = null;
+    refreshControls();
+  }
+  // app.js thêm option "coding" cho chủ app sau khi tải /api/me; coding cùng là Gemini 3.5 Flash nên bỏ cho khỏi trùng.
+  new MutationObserver(() => {
+    modelSel.querySelectorAll('option[value="coding"]').forEach((o) => o.remove());
+  }).observe(modelSel, { childList: true });
+
+  // Chờ app.js biết ai là chủ app (window.__isOwner, đặt sau khi /api/me trả về). Quá ~10s => coi như không phải chủ.
+  function whenOwnerKnown(cb) {
+    let tries = 0;
+    (function poll() {
+      if (typeof window.__isOwner === 'boolean') return cb(window.__isOwner);
+      if (++tries > 50) return cb(false);
+      setTimeout(poll, 200);
+    })();
+  }
+
+  // Người dùng thường: gỡ Hydrogen khỏi danh sách model của Chat; nếu đang chọn thì về Auto.
+  function hideHydrogenInChatPicker() {
+    try {
+      const i = MODEL_OPTIONS.findIndex((m) => m.value === 'gemini-4-hydrogen');
+      if (i >= 0) MODEL_OPTIONS.splice(i, 1);
+      if (state.model === 'gemini-4-hydrogen') {
+        state.model = 'auto';
+        try { localStorage.setItem('myai_model', 'auto'); } catch (_) {}
+      }
+      if (typeof window.updateModelPillLabel === 'function') window.updateModelPillLabel();
+    } catch (_) { /* MODEL_OPTIONS/state chưa có -> bỏ qua, server vẫn chặn */ }
+  }
+
+  function initModelDropdown() {
+    buildModelOptions(false); // hiện ngay bản không có Hydrogen, tránh nháy
+    whenOwnerKnown((isOwner) => {
+      buildModelOptions(isOwner);
+      if (!isOwner) hideHydrogenInChatPicker();
+    });
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', initModelDropdown);
+  else initModelDropdown();
 
   // Tham số gửi lên API theo đúng model đang chọn.
   function currentParams() {
@@ -146,7 +189,7 @@ async function askVelocitix(prompt, options = {}) {
 
 // ---- model ----
 //   'smart'     : Gemini 3.5 Flash (mặc định) — 'fast' / 'lite' / 'flash' là tên cũ, cũng ra Gemini 3.5 Flash
-//   'hydrogen'  : Gemini 4 Hydrogen
+//   'hydrogen'  : Gemini 4 Hydrogen (chỉ API key của chủ app dùng được, key khác nhận lỗi 403)
 //   'gemma'     : Gemma 4 31B
 //   'gemma-moe' : Gemma 4 26B-A4B
 // ---- thinking / mức nỗ lực (tuỳ model) ----

@@ -5,7 +5,7 @@
 // Body JSON:
 //   prompt   (string, bắt buộc)
 //   model    (tuỳ chọn) lite | fast | flash | smart | coding   -> Gemini 3.5 Flash
-//                       hydrogen                              -> Gemini 4 Hydrogen
+//                       hydrogen                              -> Gemini 4 Hydrogen (CHỈ chủ app; người khác nhận 403)
 //                       gemma | gemma-moe                     -> Gemma 4 31B / Gemma 4 26B-A4B
 //                       hoặc đúng tên model (vd "gemini-4-hydrogen"). Không gửi / giá trị lạ -> smart (3.5 Flash).
 //   effort   (tuỳ chọn) mức nỗ lực suy luận
@@ -79,9 +79,13 @@ export async function handleExternalChat(request, env) {
   if (!prompt || typeof prompt !== 'string') return json({ error: 'Thiếu prompt (string)' }, cors, 400);
 
   // Model coding luôn bị chặn cho non-owner (kể cả gửi thẳng tên model) -> rơi về smart.
+  // Gemini 4 Hydrogen chỉ dành cho chủ app: người khác gọi (bằng alias hoặc tên đầy đủ) -> 403 báo rõ, không tự đổi model.
   const isOwnerExt = !!(userId && env.OWNER_USER_ID && userId === env.OWNER_USER_ID);
   let model = resolveModel(body?.model) || MODELS.chatSmart;
   if (model === MODELS.chatCoding && !isOwnerExt) model = MODELS.chatSmart;
+  if (isHydrogenModel(model) && !isOwnerExt) {
+    return json({ error: 'Gemini 4 Hydrogen chỉ dành cho chủ app. Dùng model "smart" (Gemini 3.5 Flash) hoặc "gemma".' }, cors, 403);
+  }
 
   // ---- Thinking / mức nỗ lực ----
   const effort = typeof body?.effort === 'string' ? body.effort.trim().toLowerCase() : undefined;
