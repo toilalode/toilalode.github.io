@@ -3,10 +3,13 @@
 //  2. Tạo ảnh / tạo video / Deep Research đã bị gỡ khỏi app: các route này trả 410 (đỡ tốn quota/billing).
 //  3. POST /api/auto/route: cho Agent Mode (chạy ở Render) và "Mở web & hỏi AI" hỏi Cloudflare AI nên dùng model nào.
 //  4. "Mở web & hỏi AI" (/api/search/browse) dùng đúng model người dùng chọn.
+//  5. API ngoài POST /api/external/chat (x-api-key): thêm model Hydrogen / Gemma + mức nỗ lực / bật-tắt thinking
+//     — xử lý ở externalChat.js (route cũ trong index.js không còn được chạy tới).
 import base, { GeminiProxyDO, GeminiLiveDO } from './index.js';
 import { routeAuto } from './autoRouter.js';
 import { rememberAutoRoute, modelScope, normalizeChatModel } from './models.js';
 import { getUserIdFromRequest } from './auth.js';
+import { handleExternalChat } from './externalChat.js';
 
 export { GeminiProxyDO, GeminiLiveDO };
 
@@ -32,6 +35,11 @@ export default {
 
     if (request.method !== 'OPTIONS' && REMOVED.some(re => re.test(url.pathname))) {
       return jsonRes({ error: 'Tính năng này đã được gỡ khỏi app.' }, request, 410);
+    }
+
+    // API ngoài (x-api-key): Gemini 3.5 Flash / Gemini 4 Hydrogen / Gemma 4, có effort + thinking.
+    if (request.method === 'POST' && url.pathname === '/api/external/chat') {
+      return handleExternalChat(request, env);
     }
 
     // Hỏi Cloudflare AI: câu này nên dùng model nào? (cần đăng nhập). Trả { model, level, source }.
