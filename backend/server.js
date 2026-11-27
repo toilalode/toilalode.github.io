@@ -1,6 +1,7 @@
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
+const { requireOwner } = require('./middleware/ownerAuth');
 
 const app = express();
 app.use(cors());
@@ -12,6 +13,10 @@ app.use(express.json({ limit: '30mb' }));
 app.get('/', (req, res) => {
   res.json({ ok: true, service: 'Velocitix AI backend', note: 'Server này chỉ chạy API — xem frontend tại GitHub Pages.' });
 });
+
+// Mọi /api/* chỉ dành cho chủ app (token session của Worker + OWNER_USER_ID) — xem middleware/ownerAuth.js.
+// '/' và '/health' ở trên/dưới vẫn mở để Render kiểm tra sức khoẻ.
+app.use('/api', requireOwner);
 
 // API routes
 app.use('/api/chat', require('./routes/chat'));

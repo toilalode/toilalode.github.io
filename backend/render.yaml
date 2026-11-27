@@ -9,5 +9,7 @@ services:
         sync: false
       - key: OWNER_USER_ID
         sync: false
+      - key: SESSION_SECRET   # PHẢI giống SESSION_SECRET của Worker, nếu không mọi request bị 401
+        sync: false
       # Thêm các biến môi trường khác (API key, OAuth client id/secret...) ở Render Dashboard ->
       # Environment, KHÔNG để lộ trong file này (file này nằm trong repo công khai được).

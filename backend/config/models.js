@@ -2,7 +2,8 @@
 // Nguồn chính thức: https://ai.google.dev/gemini-api/docs/models và /pricing
 //
 //  - gemini-3.5-flash   : mọi người dùng được. Thinking = thinkingBudget theo mức Thấp/TB/Cao.
-//  - gemini-4-hydrogen  : thinkingLevel low/medium/high/xhigh (xhigh tốn nhiều token).
+//  - gemini-4-hydrogen  : thinkingLevel low/medium/high/xhigh (xhigh tốn nhiều token). CHỈ chủ app dùng được —
+//                         cả backend Render đã khoá cho chủ app (middleware/ownerAuth.js), người khác bị 401/403.
 //  - gemma-4-31b-it / gemma-4-26b-a4b-it : chỉ bật/tắt thinking (thinkingLevel 'high' / 'minimal').
 //  Đã bỏ: gemini-3.1-flash-lite, gemini-3-flash-preview, gemini-3.1-pro-preview (các khoá chatLite/
 //  chatFast/chatSmart/chatCoding được giữ lại cho file khác dùng nhưng đều trỏ về gemini-3.5-flash).
